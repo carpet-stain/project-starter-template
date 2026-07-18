@@ -8,3 +8,9 @@ config:
   # Generated docs and ADRs may open with a badge line or front matter before
   # the H1 — don't force the first line to be a top-level heading.
   MD041: false
+  # git-flow/README.md's runbook uses `<dir>`/`<branch>`-style placeholder
+  # markers inside code spans that sometimes wrap across a soft line break —
+  # markdownlint-cli2 misreads those as literal HTML rather than as part of
+  # the code span. Not real HTML; same call dotfiles (this template's
+  # source repo) made for the identical content.
+  MD033: false

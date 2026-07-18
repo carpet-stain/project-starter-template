@@ -10,12 +10,3 @@ lint *args:
 # Create a numbered ADR from the template: `just adr "Short decision title"`.
 adr *args:
     scripts/new-adr.sh {{ args }}
-
-# Render-then-lint the copier templates this repo hosts (git-flow/python) —
-# see scripts/lint-templates.sh's own header for the strategy. Not part of
-# the base/overlay template contract shipped to consumers (this repo hosts
-# the templates; a generated repo doesn't) — kept here rather than a
-# separate top-level justfile since this repo has no `copier update` path
-# to keep justfile.base a pristine, unedited copy for.
-lint-templates:
-    scripts/lint-templates.sh

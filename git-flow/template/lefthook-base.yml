@@ -44,29 +44,8 @@ pre-commit:
       tags: [base]
       run: scripts/check-envrc-local-example.sh
 
-    # Raw jinja syntax check on the copier templates this repo hosts — cheap,
-    # catches broken jinja before render. Not tagged `base`: this job is
-    # specific to this repo hosting the templates, not part of what a
-    # generated repo's own `just lint --tag base` runs. Filtering (extension,
-    # two known j2lint-false-positive files) lives in the script; see its
-    # header for why.
-    - name: j2lint
-      glob:
-        - "git-flow/template/**"
-        - "python/template/**"
-      run: scripts/lint-templates.sh --jinja {staged_files}
-
 pre-push:
   jobs:
     - name: envrc-local-example-sync
       tags: [base]
       run: scripts/check-envrc-local-example.sh
-
-    # Render-then-lint — heavier (a full copier render + uv sync per
-    # template), so pre-push rather than pre-commit; CI runs the same
-    # `just lint-templates` entry point (lint-templates.yml).
-    - name: lint-templates
-      glob:
-        - "git-flow/**"
-        - "python/**"
-      run: just lint-templates

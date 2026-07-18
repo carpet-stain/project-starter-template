@@ -1,0 +1,61 @@
+name: Lint templates
+
+# Render-then-lint for the copier templates this repo hosts (git-flow base,
+# python overlay) — see scripts/lint-templates.sh's own header for the
+# strategy. Separate workflow from lint.yml: it needs its own toolchain
+# (uv, taplo, shellcheck) beyond the base lint job's linters, and validates
+# the templates' *rendered output*, not this repo's own source files.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-templates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-templates:
+    name: lint-templates
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+
+      # Provides `uv`/`uvx` — renders the templates (copier) and runs the
+      # raw jinja check (j2lint); the python overlay render's own
+      # ruff/pyright come from its own `uv sync`, not a separate install.
+      - uses: astral-sh/setup-uv@v3
+
+      - uses: extractions/setup-just@v3
+
+      - name: Install actionlint, yamlfmt, taplo
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          YAMLFMT_VERSION: "0.21.0"
+          TAPLO_VERSION: "0.10.0"
+        run: |
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin actionlint
+          curl -fsSL "https://github.com/google/yamlfmt/releases/download/v${YAMLFMT_VERSION}/yamlfmt_${YAMLFMT_VERSION}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin yamlfmt
+          curl -fsSL "https://github.com/tamasfe/taplo/releases/download/${TAPLO_VERSION}/taplo-linux-x86_64.gz" \
+            | gunzip | sudo tee /usr/local/bin/taplo >/dev/null
+          sudo chmod +x /usr/local/bin/taplo
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Install Node lint tools
+        run: npm install --global lefthook markdownlint-cli2 prettier
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run copier-template lint/format checks
+        run: just lint-templates
