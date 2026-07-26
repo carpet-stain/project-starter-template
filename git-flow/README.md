@@ -74,10 +74,12 @@ it — `copier copy`/`py-new` onto an empty dir has no collisions.
   `just adr`. An overlay drops its verbs in `justfile.lang`
 - `lefthook.yml` + `lefthook-base.yml` + `lefthook-lang.yml` — the composition
   root (`extends` both), the base jobs tagged `base` (`actionlint`,
-  `markdownlint-cli2`, `prettier`, `yamlfmt`, `check-envrc-local-example.sh`),
-  and an empty stub an overlay overwrites with its `lang`-tagged jobs
-- `.editorconfig`, `.markdownlint-cli2.yaml`, `.prettierrc.json`, `.yamlfmt` —
-  the language-agnostic formatting baseline the lefthook jobs and CI enforce
+  `markdownlint-cli2`, `prettier`, `yamlfmt`, `gitleaks`,
+  `check-envrc-local-example.sh`), and an empty stub an overlay overwrites
+  with its `lang`-tagged jobs
+- `.editorconfig`, `.markdownlint-cli2.yaml`, `.prettierrc.json`, `.yamlfmt`,
+  `.gitleaks.toml` — the language-agnostic formatting and secrets-scanning
+  baseline the lefthook jobs and CI enforce
 - `README.md` — a starter front door filled from the copier answers, pointing
   at `docs/adr/` and `just lint` rather than restating them
 - `.envrc` + `.envrc.local.example` — aliases `GH_TOKEN` to `GITHUB_TOKEN`
