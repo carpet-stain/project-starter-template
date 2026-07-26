@@ -1,14 +1,37 @@
-# Composition root — base-owned, never edited by an overlay (ADR-0020 in the
-# template's source repo). Base verbs live in justfile.base; a language
-# overlay drops its verbs in justfile.lang and the optional import picks it
-# up — absent in a base-only repo, active the moment the overlay lands.
-# justfile.release is the same optional-import shape, gated on
-# include_release_automation instead of a language overlay.
+# This repo's own dev tooling — not the templates it hosts. A single file:
+# unlike git-flow/template's base/lang split (the real composition mechanism
+# a *generated* repo needs to layer a language overlay without editing the
+# base), this repo has no overlay of its own to compose with, so the split
+# bought nothing here — it was just an artifact of bootstrapping from the
+# git-flow base (#10). git-flow/template/ and python/template/ keep the
+# split; it's load-bearing there.
 
-import 'justfile.base'
-import? 'justfile.lang'
 import? 'justfile.release'
 
 # List recipes when invoked with no arguments.
 _default:
     @just --list
+
+# Run every pre-commit check (CI's lint job runs `just lint --tag base`).
+lint *args:
+    lefthook run pre-commit --all-files {{ args }}
+
+# Create a numbered ADR from the template: `just adr "Short decision title"`.
+adr *args:
+    scripts/new-adr.sh {{ args }}
+
+# Auto-format markdown with prettier (fixes what md-format only checks).
+# Manual, deliberately NOT a lefthook job: `just lint` (and CI's lint job) run
+# `lefthook run pre-commit --all-files`, and `prettier --write` always exits 0
+# — hooking it would make md-format stop gating format in CI (dotfiles#406).
+# Scoped via git ls-files to tracked markdown only, mirroring md-format's
+# excludes (CHANGELOG is git-cliff-generated, agent-memory is heredoc notes).
+format:
+    git ls-files -z '*.md' ':!:CHANGELOG.md' ':!:.claude/agent-memory/**' | xargs -0 prettier --write
+
+# Render-then-lint the copier templates this repo hosts (git-flow/python) —
+# see scripts/lint-templates.sh's own header for the strategy. Not part of
+# the base/overlay template contract shipped to consumers (this repo hosts
+# the templates; a generated repo doesn't).
+lint-templates:
+    scripts/lint-templates.sh
