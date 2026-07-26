@@ -69,7 +69,8 @@ it — `copier copy`/`py-new` onto an empty dir has no collisions.
 - `.github/pull_request_template.md` — the Conventional-Commit title reminder
   plus the doc-ownership checklist (decisions journal, ADR-when, supersede)
 - `.github/ISSUE_TEMPLATE/` — bug / feature / spike forms whose default labels
-  match the `apply-labels.sh` taxonomy
+  match the canonical label taxonomy every repo gets via infra's `repos.tf`
+  (see the Bootstrap runbook below)
 - `justfile` + `justfile.base` — the composition root (`import
 'justfile.base'`, `import? 'justfile.lang'`, `import? 'justfile.release'`)
   and the base verbs: `just lint` (wraps `lefthook run pre-commit
@@ -138,8 +139,21 @@ working-tree file content).
    (`gh api repos/{owner}/{repo}/branches/<branch>/rename -f new_name=main`),
    not another push — renaming an already-pushed branch doesn't touch
    content, so nothing needs re-review.
-3. **Apply labels** — from inside the generated repo's checkout:
-   `env -u GH_TOKEN -u GITHUB_TOKEN ~/.config/dotfiles/scripts/apply-labels.sh`.
+
+   A repo created via `carpet-stain/infra`'s `repos.tf` already has branch
+   protection and labels active before this first commit ever lands —
+   `tofu apply` provisions both together with repo creation. A direct push
+   to `main` is then rejected (`GH013`: required status checks with nothing
+   to report them yet, since there's no PR/CI run behind a bare push). Use
+   the branch-rename workaround above instead of retrying the push — a
+   rename doesn't re-trigger the ruleset's push check. **Skip steps 3–4
+   entirely** for such a repo: both are already done by the same
+   `tofu apply`; re-running `bootstrap-branch-protection.sh` would likely
+   422 against the ruleset that already exists.
+
+3. **Apply labels** — nothing to do for a repo created via infra's
+   `repos.tf` (see the note under step 2 above). There's no other tracked
+   path for applying labels to a repo bootstrapped outside infra.
 4. **Apply branch protection** — same directory:
    `env -u GH_TOKEN -u GITHUB_TOKEN ~/.config/dotfiles/scripts/bootstrap-branch-protection.sh`.
    Must come after step 2: it hardcodes `single commit` + `conventional
