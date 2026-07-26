@@ -60,6 +60,16 @@ jobs:
           curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | sudo tar -xz -C /usr/local/bin gitleaks
 
+      - name: Install shfmt and shellcheck
+        env:
+          SHFMT_VERSION: "3.13.1"
+          SHELLCHECK_VERSION: "0.11.0"
+        run: |
+          curl -fsSL "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64" \
+            -o /tmp/shfmt && sudo install -m 755 /tmp/shfmt /usr/local/bin/shfmt
+          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | sudo tar -xJ -C /usr/local/bin --strip-components=1 "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
+
       # `just lint` wraps `lefthook run pre-commit --all-files` — the same
       # entry point contributors run, here scoped to the base-owned jobs via
       # their lefthook tag. Locally (no tag filter) the full union runs on
