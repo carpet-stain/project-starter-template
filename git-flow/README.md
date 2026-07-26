@@ -75,8 +75,9 @@ it — `copier copy`/`py-new` onto an empty dir has no collisions.
 - `lefthook.yml` + `lefthook-base.yml` + `lefthook-lang.yml` — the composition
   root (`extends` both), the base jobs tagged `base` (`actionlint`,
   `markdownlint-cli2`, `prettier`, `yamlfmt`, `gitleaks`, `shfmt`,
-  `shellcheck`, `check-envrc-local-example.sh`), and an empty stub an
-  overlay overwrites with its `lang`-tagged jobs
+  `shellcheck`, `justfile-format`, `editorconfig-checker`,
+  `check-envrc-local-example.sh`), and an empty stub an overlay overwrites
+  with its `lang`-tagged jobs
 - `.editorconfig`, `.markdownlint-cli2.yaml`, `.prettierrc.json`, `.yamlfmt`,
   `.gitleaks.toml` — the language-agnostic formatting and secrets-scanning
   baseline the lefthook jobs and CI enforce

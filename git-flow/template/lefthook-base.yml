@@ -69,6 +69,38 @@ pre-commit:
         - ".envrc.local.example"
       run: shellcheck {staged_files}
 
+    - name: justfile-format
+      tags: [base]
+      glob:
+        - "justfile"
+        - "justfile.base"
+      # --justfile (not a positional, which `just` reads as a recipe name)
+      # takes exactly one path — this repo has two real justfiles (`justfile`
+      # + `justfile.base`, unlike dotfiles' single one), so xargs -n1 runs
+      # the check once per matched file instead of passing both to one
+      # invocation. --fmt --check validates syntax (it must parse to
+      # format) and canonical formatting in one pass. Lineage: dotfiles'
+      # justfile-format job.
+      run: echo {staged_files} | xargs -n1 just --fmt --check --justfile
+
+    - name: editorconfig-checker
+      tags: [base]
+      glob:
+        - "*"
+        - "**/*"
+      exclude:
+        - "CHANGELOG.md"
+        - ".claude/agent-memory/**"
+      # The catch-all for files no dedicated formatter covers. Indent checks
+      # are off (--disable-indentation): indentation stays each
+      # per-language formatter's job (shfmt/prettier/yamlfmt), which
+      # understands its own syntax — see dotfiles' inline comment for the
+      # full why. Excludes match the markdown jobs' (CHANGELOG.md is
+      # git-cliff generated once release automation is used;
+      # .claude/agent-memory/** is the committed agent-memory store) —
+      # dotfiles' theme/zellij vendored-content excludes don't travel here.
+      run: editorconfig-checker --disable-indentation {staged_files}
+
     - name: envrc-local-example-sync
       tags: [base]
       run: scripts/check-envrc-local-example.sh
