@@ -30,7 +30,7 @@ jobs:
       # ruff/pyright come from its own `uv sync`, not a separate install.
       - uses: astral-sh/setup-uv@v7
 
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
 
       - name: Install actionlint, yamlfmt, taplo
         env:
