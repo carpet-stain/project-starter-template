@@ -28,7 +28,7 @@ jobs:
       # Provides `uv`/`uvx` — renders the templates (copier) and runs the
       # raw jinja check (j2lint); the python overlay render's own
       # ruff/pyright come from its own `uv sync`, not a separate install.
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v7
 
       - uses: extractions/setup-just@v3
 
