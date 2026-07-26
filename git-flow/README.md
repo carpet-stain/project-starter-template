@@ -28,12 +28,12 @@ include release automation, then a post-generation task runs `git init` and
 ## Retrofit an existing, never-templated repo
 
 ```sh
-~/.config/dotfiles/scripts/retrofit-governance.sh [--python] <repo-dir>
+project-starter-template/scripts/retrofit-governance.sh [--python] <repo-dir>
 ```
 
 `copier copy` can't do this safely — `--overwrite` replaces colliding files
 (deleting the repo's real README), and the plain path prompts per file. The
-script (#282) generates the template output into a temp tree and **git-merges**
+script generates the template output into a temp tree and **git-merges**
 it in as an unrelated history, which is the additive semantics wanted: an
 absent file is created, an existing one becomes an `add/add` conflict with both
 contents kept under markers for the operator to resolve, and nothing is ever
@@ -56,6 +56,10 @@ it — `copier copy`/`py-new` onto an empty dir has no collisions.
   language-agnostic linters via `just lint --tag base`, gated on
   `draft == false`. A language overlay never touches it — it ships its own
   workflow (e.g. `test.yml`) running its own lefthook tag slice (ADR-0020)
+- `.github/workflows/pr-code-review.yml` — advisory review of
+  `architecture`-labeled PRs by a non-Anthropic model, never a required
+  check. Inert until an `OPENAI_API_KEY` repo secret exists; skips cleanly
+  (green) without it — see the workflow's own comments.
 - `docs/adr/` scaffolding — `README.md` (what an ADR is, when to write one),
   `templates/template.md` (the Nygard template), `scripts/new-adr.sh` (stamps
   the next-numbered ADR from it — run via `just adr`, no adr-tools dependency),
@@ -98,10 +102,10 @@ it — `copier copy`/`py-new` onto an empty dir has no collisions.
 
 - **Branch protection.** Needs Administration-scope API access the routine
   `GH_TOKEN` deliberately lacks. Run
-  `~/.config/dotfiles/scripts/bootstrap-branch-protection.sh` by hand with
-  `env -u GH_TOKEN -u GITHUB_TOKEN` after generating the repo — see that script and #137's
-  decision comment on #136 for why this stays a separate, explicitly-elevated
-  step instead of a copier post-gen task.
+  `project-starter-template/scripts/bootstrap-branch-protection.sh` by hand
+  with `env -u GH_TOKEN -u GITHUB_TOKEN` after generating the repo — see that
+  script and #137's decision comment on #136 for why this stays a separate,
+  explicitly-elevated step instead of a copier post-gen task.
 - **The `RELEASE_PAT` secret.** `release-prepare.yml` needs a repo secret
   named `RELEASE_PAT` (a fine-grained PAT with Contents + Pull requests
   write) so its release PR triggers `pr-guards.yml` for real instead of
@@ -155,7 +159,7 @@ working-tree file content).
    `repos.tf` (see the note under step 2 above). There's no other tracked
    path for applying labels to a repo bootstrapped outside infra.
 4. **Apply branch protection** — same directory:
-   `env -u GH_TOKEN -u GITHUB_TOKEN ~/.config/dotfiles/scripts/bootstrap-branch-protection.sh`.
+   `env -u GH_TOKEN -u GITHUB_TOKEN project-starter-template/scripts/bootstrap-branch-protection.sh`.
    Must come after step 2: it hardcodes `single commit` + `conventional
 commit` as required checks, which only exist once `pr-guards.yml` is in
    the repo — running this first leaves required checks that never report,
