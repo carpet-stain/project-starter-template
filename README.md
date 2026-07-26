@@ -39,6 +39,10 @@ pointer, not a restatement. A generated repo carries no
 `.copier-answers` file and has no `copier update` path: scaffold once,
 then evolve the repo directly — see `docs/adr/` for the decision and why.
 
+Adding a second language overlay? See
+[`docs/adding-an-overlay.md`](docs/adding-an-overlay.md) for the file-ownership
+contract `python/` follows and a new overlay must too.
+
 Repo creation, the canonical label set, and branch protection for every
 repo scaffolded from this base — including this one — are managed via
 `carpet-stain/infra`'s `repos.tf`, not a manual bootstrap step; see that
