@@ -62,16 +62,22 @@ it — `copier copy`/`py-new` onto an empty dir has no collisions.
   `.adr-dir`, and a seed `0001-record-architecture-decisions.md` so the
   directory exists in a fresh checkout
 - `.github/workflows/release-prepare.yml` / `release-publish.yml` +
-  `cliff.toml` (if release automation is included) — manual-dispatch version
-  bump via git-cliff, a release PR, tag + GitHub release on merge
+  `cliff.toml` + `justfile.release` (if release automation is included) —
+  manual-dispatch version bump via git-cliff, a release PR, tag + GitHub
+  release on merge; `justfile.release` adds the `cliff-preview` verb (a
+  zero-side-effect preview of the version/changelog bump)
 - `.github/pull_request_template.md` — the Conventional-Commit title reminder
   plus the doc-ownership checklist (decisions journal, ADR-when, supersede)
 - `.github/ISSUE_TEMPLATE/` — bug / feature / spike forms whose default labels
   match the `apply-labels.sh` taxonomy
 - `justfile` + `justfile.base` — the composition root (`import
-'justfile.base'`, `import? 'justfile.lang'`) and the base verbs: `just lint`
-  (wraps `lefthook run pre-commit --all-files`, the entry point CI shares) and
-  `just adr`. An overlay drops its verbs in `justfile.lang`
+'justfile.base'`, `import? 'justfile.lang'`, `import? 'justfile.release'`)
+  and the base verbs: `just lint` (wraps `lefthook run pre-commit
+--all-files`, the entry point CI shares), `just adr`, and `just format`
+  (fixes what the `md-format` lefthook job only checks — deliberately a
+  recipe, not a hook, dotfiles#406). An overlay drops its verbs in
+  `justfile.lang`; release automation drops `cliff-preview` in
+  `justfile.release`
 - `lefthook.yml` + `lefthook-base.yml` + `lefthook-lang.yml` — the composition
   root (`extends` both), the base jobs tagged `base` (`actionlint`,
   `markdownlint-cli2`, `prettier`, `yamlfmt`, `gitleaks`, `shfmt`,
