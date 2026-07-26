@@ -23,18 +23,19 @@ author_email:
   help: Author email for pyproject.toml
 
 _tasks:
-  - |
-    #!/usr/bin/env bash
-    # `pipefail` is a bash extension; copier runs a shebang-less task via
-    # /bin/sh, which is dash (no pipefail) on Linux and happens to be
-    # bash-backed on macOS — the shebang pins the interpreter so this task
-    # behaves the same on both instead of only working by accident locally.
-    set -euo pipefail
-    latest=$(uv python list | awk '{print $1}' | grep -E '^cpython-[0-9]+\.[0-9]+\.[0-9]+-' | grep -vE '(a|b|rc)[0-9]+-' | head -1 | cut -d- -f2)
-    uv python pin "$(cut -d. -f1,2 <<<"$latest")"
-    pyver=$(cat .python-version)
-    sed -i.bak "s/^requires-python = .*/requires-python = \">=${pyver}\"/" pyproject.toml
-    rm -f pyproject.toml.bak
-    uv sync
-    git init -q
-    lefthook install
+  # A string task runs under the system's default shell (dash on Linux, which
+  # lacks `pipefail`); a leading `#!/usr/bin/env bash` line is just a comment
+  # to that shell, not a re-exec. The array form below invokes bash directly,
+  # no shell in between, so this doesn't depend on /bin/sh's identity at all.
+  - - bash
+    - -c
+    - |
+      set -euo pipefail
+      latest=$(uv python list | awk '{print $1}' | grep -E '^cpython-[0-9]+\.[0-9]+\.[0-9]+-' | grep -vE '(a|b|rc)[0-9]+-' | head -1 | cut -d- -f2)
+      uv python pin "$(cut -d. -f1,2 <<<"$latest")"
+      pyver=$(cat .python-version)
+      sed -i.bak "s/^requires-python = .*/requires-python = \">=${pyver}\"/" pyproject.toml
+      rm -f pyproject.toml.bak
+      uv sync
+      git init -q
+      lefthook install
