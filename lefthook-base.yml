@@ -40,6 +40,17 @@ pre-commit:
         - "lefthook-lang.yml"
       run: yamlfmt -lint {staged_files}
 
+    - name: gitleaks
+      tags: [base]
+      # No glob, no {staged_files}: gitleaks is content-based, not
+      # file-type-gated, and must cover .claude/agent-memory/** (the
+      # committed agent-memory store's secrets floor) — never copy the
+      # markdown jobs' exclude list here. Whole-tree dir scan rather than
+      # --staged so the same invocation is meaningful under CI's
+      # `lefthook run pre-commit --all-files`, where nothing is staged.
+      # Allowlist lives in .gitleaks.toml. Lineage: dotfiles#390.
+      run: gitleaks dir . --no-banner --redact
+
     - name: envrc-local-example-sync
       tags: [base]
       run: scripts/check-envrc-local-example.sh

@@ -53,6 +53,13 @@ jobs:
           curl -fsSL "https://github.com/google/yamlfmt/releases/download/v${YAMLFMT_VERSION}/yamlfmt_${YAMLFMT_VERSION}_Linux_x86_64.tar.gz" \
             | sudo tar -xz -C /usr/local/bin yamlfmt
 
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+
       # `just lint` wraps `lefthook run pre-commit --all-files` — the same
       # entry point contributors run, here scoped to the base-owned jobs via
       # their lefthook tag. Locally (no tag filter) the full union runs on
