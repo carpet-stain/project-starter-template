@@ -29,7 +29,7 @@ adr *args:
 format:
     git ls-files -z '*.md' ':!:CHANGELOG.md' ':!:.claude/agent-memory/**' | xargs -0 prettier --write
 
-# Render-then-lint the copier templates this repo hosts (git-flow/python) —
+# Render-then-verify the copier templates this repo hosts (git-flow/python) —
 # see scripts/lint-templates.sh's own header for the strategy. Not part of
 # the base/overlay template contract shipped to consumers (this repo hosts
 # the templates; a generated repo doesn't).
