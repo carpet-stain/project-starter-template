@@ -50,9 +50,10 @@ repo for the governance side of the story.
 
 ## Verifying template changes
 
-`just lint` runs this repo's own source checks; `just lint-templates`
-render-then-lints the copier templates themselves (`scripts/lint-templates.sh`
-has the strategy) — CI runs both.
+`just lint` runs this repo's own source checks; `just lint-templates` renders
+the copier templates themselves and runs each render's own lefthook checks
+against the output (`scripts/lint-templates.sh` has the strategy) — CI runs
+both.
 
 ## Contributing
 

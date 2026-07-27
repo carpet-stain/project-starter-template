@@ -122,9 +122,9 @@ pre-push:
       tags: [base]
       run: scripts/check-envrc-local-example.sh
 
-    # Render-then-lint — heavier (a full copier render + uv sync per
-    # template), so pre-push rather than pre-commit; CI runs the same
-    # `just lint-templates` entry point (lint-templates.yml).
+    # Render-then-verify — heavier (a full copier render + rendered
+    # lefthook run per template), so pre-push rather than pre-commit; CI
+    # runs the same `just lint-templates` entry point (lint-templates.yml).
     - name: lint-templates
       glob:
         - "git-flow/**"
