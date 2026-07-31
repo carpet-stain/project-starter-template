@@ -11,7 +11,7 @@ top.
 
 The templates write **no `.copier-answers` file**, so there is no `copier
 update` path — a repo is scaffolded once and evolved directly from then on
-(ADR-0020, ADR-0021 in this repo's `docs/adr/`). Later template conventions
+(ADR-0020, ADR-0021 in the template's source repo). Later template conventions
 reach an existing repo by editing it, or by re-running the retrofit below.
 
 ## Use

@@ -6,7 +6,7 @@ mechanism.
 
 This is a **language overlay on the git-flow governance base** (`../git-flow`),
 not a standalone template — `py-new` applies git-flow first, then layers this on
-top. The layers own disjoint files (ADR-0020 in this repo's `docs/adr/`): the
+top. The layers own disjoint files (ADR-0020 in the template's source repo): the
 overlay ships its own CI workflow (`test.yml`), its lefthook jobs
 (`lefthook-lang.yml`, overwriting the base's empty stub), and its just verbs
 (`justfile.lang`, picked up by the base justfile's `import?`). Everything the
@@ -30,8 +30,8 @@ leaves a project with no lock file and no hooks. You answer the base's questions
 (project name, package name, description, author).
 
 The templates write no `.copier-answers` file, so there is no `copier update`
-path — scaffold once, then evolve the repo directly (ADR-0021 in this repo's
-`docs/adr/`).
+path — scaffold once, then evolve the repo directly (ADR-0021 in the
+template's source repo).
 
 ## What it produces
 
