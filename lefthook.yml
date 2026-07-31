@@ -72,6 +72,15 @@ pre-commit:
         - ".envrc.local.example"
       run: shellcheck {staged_files}
 
+    - name: comment-concision
+      tags: [base]
+      glob:
+        - "scripts/*.sh"
+        - ".github/workflows/*.yml"
+        - ".github/workflows/*.yaml"
+        - "lefthook.yml"
+      run: scripts/check-comment-concision.sh {staged_files}
+
     - name: justfile-format
       tags: [base]
       glob:
