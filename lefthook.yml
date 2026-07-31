@@ -15,16 +15,6 @@ pre-commit:
         - ".github/workflows/*.yaml"
       run: actionlint {staged_files}
 
-    - name: markdownlint
-      tags: [base]
-      glob:
-        - "*.md"
-        - "**/*.md"
-      exclude:
-        - "CHANGELOG.md"
-        - ".claude/agent-memory/**"
-      run: markdownlint-cli2 {staged_files}
-
     - name: md-format
       tags: [base]
       glob:
@@ -34,6 +24,16 @@ pre-commit:
         - "CHANGELOG.md"
         - ".claude/agent-memory/**"
       run: prettier --check {staged_files}
+
+    - name: markdownlint
+      tags: [base]
+      glob:
+        - "*.md"
+        - "**/*.md"
+      exclude:
+        - "CHANGELOG.md"
+        - ".claude/agent-memory/**"
+      run: markdownlint-cli2 {staged_files}
 
     - name: yaml-format
       tags: [base]
