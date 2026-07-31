@@ -40,11 +40,11 @@ fail=0
 #   - cliff.toml.jinja embeds git-cliff's own Tera template inside a Jinja
 #     `{% raw %}` block; j2lint doesn't know to skip raw-block contents and
 #     misreads Tera's {{ }}/{% %} as malformed Jinja.
-#   - release-prepare/publish.yml.jinja use GitHub Actions' own `${{ }}`
-#     syntax literally (this template remaps copier's variable delimiters to
-#     `[[ ]]` in copier.yml's _envops specifically so `${{ }}` passes
-#     through untouched) — j2lint doesn't know about that remap and misreads
-#     `${{ secrets.X }}` as a plain Jinja variable.
+#   - release-prepare/publish.yml.jinja and pr-guards.yml.jinja use GitHub
+#     Actions' own `${{ }}` syntax literally (this template remaps copier's
+#     variable delimiters to `[[ ]]` in copier.yml's _envops specifically so
+#     `${{ }}` passes through untouched) — j2lint doesn't know about that
+#     remap and misreads `${{ secrets.X }}` as a plain Jinja variable.
 j2lint_pass() {
   local jinja_files=()
   for f in "$@"; do
@@ -55,6 +55,7 @@ j2lint_pass() {
     case "$f" in
       *cliff.toml*.jinja) continue ;;
       *release-prepare.yml*.jinja | *release-publish.yml*.jinja) continue ;;
+      *pr-guards.yml.jinja) continue ;;
       *) jinja_files+=("$f") ;;
     esac
   done
