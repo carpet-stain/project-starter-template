@@ -89,7 +89,12 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${E2E_REPO}.git" "$RUNNER_TEMP/e2e"
+          # --branch main, not whatever the repo's default branch happens to
+          # be set to (they can diverge — e.g. a stale leftover branch left
+          # as default from a prior manual test) — this workflow's PR always
+          # targets main explicitly below, so the branch it forks from must
+          # match, not just whatever `git clone` defaults to.
+          git clone --branch main "https://x-access-token:${GH_TOKEN}@github.com/${E2E_REPO}.git" "$RUNNER_TEMP/e2e"
           cd "$RUNNER_TEMP/e2e"
           git checkout -b "$BRANCH"
           rsync -a --delete --exclude .git "$RUNNER_TEMP/render/" ./
