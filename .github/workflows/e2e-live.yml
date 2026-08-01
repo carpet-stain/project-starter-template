@@ -94,6 +94,7 @@ jobs:
       # not a synthetic shortcut. rsync --delete so a file the render no
       # longer produces is actually removed, not just left stale.
       - name: Push render as a new branch
+        id: push
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
@@ -107,6 +108,16 @@ jobs:
           git checkout -b "$BRANCH"
           rsync -a --delete --exclude .git "$RUNNER_TEMP/render/" ./
           git add -A
+          # A render identical to main's current content is a legitimate,
+          # common outcome (nothing in the template changed since the last
+          # run) — not a failure. Skip the rest of the cycle rather than
+          # opening a no-op PR against nothing.
+          if git diff --cached --quiet; then
+            echo "no changes since main's current render — nothing to verify this run"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
           # Synthetic committer identity — template-e2e is a disposable,
           # per-run-discarded sandbox with no external audience, so
           # verified-bot attribution isn't worth chasing here.
@@ -116,6 +127,7 @@ jobs:
 
       - name: Open draft PR
         id: pr
+        if: steps.push.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
@@ -133,6 +145,7 @@ jobs:
       # case). `--required` matches template-e2e's ruleset exactly: single
       # commit, conventional commit, adr guard (no extra_required_checks).
       - name: Assert draft-gate stays quiet
+        if: steps.push.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
@@ -147,16 +160,19 @@ jobs:
           fi
 
       - name: Flip PR ready
+        if: steps.push.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: gh pr ready "${{ steps.pr.outputs.number }}" -R "$E2E_REPO"
 
       - name: Poll for green required checks
+        if: steps.push.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: timeout 600 gh pr checks "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --watch --required --fail-fast
 
       - name: Rebase-merge
+        if: steps.push.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: gh pr merge "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --rebase
@@ -165,6 +181,7 @@ jobs:
       # branch already; confirm it actually fired rather than trusting Tofu
       # state.
       - name: Assert branch deleted post-merge
+        if: steps.push.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
