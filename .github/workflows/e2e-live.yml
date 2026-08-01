@@ -47,6 +47,14 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
 
+      # copier's own post-gen task list (_tasks in copier.yml) runs
+      # `lefthook install` -- needs the binary present regardless of
+      # whether this workflow ever runs a lefthook check itself.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      - run: npm install --global lefthook
+
       - name: Read vended token from Bitwarden
         id: bw
         uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
