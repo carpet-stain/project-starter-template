@@ -149,8 +149,21 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
-          timeout 120 gh pr checks "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --watch --required || true
-          checks=$(gh pr checks "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --required --json name,bucket)
+          # gh pr checks --watch treats zero checks reported as terminal, not
+          # pending — it doesn't wait for GitHub to even schedule the
+          # pr-guards.yml/adr-guard.yml runs in the first place (a few
+          # seconds of webhook/queueing lag right after PR creation).
+          # Confirmed live: querying immediately after `gh pr create` hit
+          # "no checks reported" outright. Poll by hand instead.
+          checks="[]"
+          for _ in $(seq 1 24); do
+            if out=$(gh pr checks "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --required --json name,bucket 2>/dev/null) \
+              && [ "$(jq 'length' <<<"$out")" -ge 3 ]; then
+              checks="$out"
+              break
+            fi
+            sleep 5
+          done
           echo "$checks" | jq .
           count=$(jq 'length' <<<"$checks")
           not_skipping=$(jq '[.[] | select(.bucket != "skipping")] | length' <<<"$checks")
@@ -175,7 +188,19 @@ jobs:
         if: steps.push.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
-        run: gh pr merge "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --rebase
+        run: |
+          # A brief consistency lag between the Checks API (what the prior
+          # poll queried) and the ruleset engine's own merge-eligibility
+          # evaluation — confirmed live: merge was rejected immediately
+          # after a clean --fail-fast poll with "3 of 3 required status
+          # checks are queued", even though gh pr checks had just reported
+          # them all passing.
+          for _ in $(seq 1 6); do
+            gh pr merge "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --rebase && exit 0
+            sleep 5
+          done
+          echo "::error::rebase-merge still rejected after retrying — not just the ruleset-lag case" >&2
+          exit 1
 
       # delete_branch_on_merge (main.tf, repo-wide) should have swept the
       # branch already; confirm it actually fired rather than trusting Tofu
