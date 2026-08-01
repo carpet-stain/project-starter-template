@@ -1,0 +1,163 @@
+name: Live e2e (template-e2e)
+
+# Dispatch-triggered live exercise of the git-flow payload against
+# carpet-stain/template-e2e, a permanent sandbox provisioned by infra's
+# repos.tf. #41/lint-templates.yml verify the rendered output locally
+# (copier render + the rendered repo's own lefthook checks); this verifies
+# it against actual live GitHub behavior — branch rulesets really enforcing
+# what they declare, the draft-PR gate's job-level `if:` actually staying
+# quiet until ready, a real rebase-merge, a real branch deletion. Design:
+# project-starter-template#42's decision comment. Part of epic #47.
+
+# Auth: template-e2e is a different repo than this one, so the ambient
+# `github.token` (scoped to this repo only) can't reach it. Fetches the
+# infra-vended cross-repo token from Bitwarden instead (docs/CONSUMING-
+# SECRETS.md's "CI" recipe) — the same token a local/agent shell reads,
+# scoped to {contents, issues, pull_requests, actions}: write + checks: read
+# over template-e2e (infra PR #134/#135). Needs two things provisioned by a
+# human in this repo's own Settings (never self-service — the underlying
+# Bitwarden access token is Keychain-gated behind an interactive approval,
+# so an agent can't provision this itself): a secret `BWS_ACCESS_TOKEN`
+# (the Local machine-account token) and a variable `BWS_VENDED_SECRET_ID`
+# (the vended secret's UUID, non-secret).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-live
+  # Never cancel a run mid-flight: it may already be mid-merge against the
+  # sandbox, and a cancelled run's own branch/PR is exactly what #50's
+  # crash-cleanup preamble exists to sweep up on the *next* run, not what a
+  # cancellation should race against.
+  cancel-in-progress: false
+
+env:
+  E2E_REPO: carpet-stain/template-e2e
+  BRANCH: e2e/${{ github.run_id }}
+
+jobs:
+  e2e:
+    name: live e2e
+    runs-on: ubuntu-latest
+    # Zero github.token permissions: every GitHub API call in this job goes
+    # through the vended cross-repo token below, never the ambient one.
+    permissions: {}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Read vended token from Bitwarden
+        id: bw
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+        with:
+          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
+          set_env: false
+          secrets: |
+            ${{ vars.BWS_VENDED_SECRET_ID }} > VENDED
+
+      - name: Extract token
+        id: token
+        env:
+          VENDED: ${{ steps.bw.outputs.VENDED }}
+        run: |
+          token=$(jq -r '.token // empty' <<<"$VENDED")
+          if [ -z "$token" ]; then
+            echo "::error::vended secret had no .token field — check BWS_VENDED_SECRET_ID and vend-token.yml's publish shape" >&2
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Crash-cleanup preamble (#50)
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: scripts/e2e-cleanup-stale.sh
+
+      - name: Render git-flow payload
+        run: |
+          uvx copier copy --trust --defaults \
+            -d github_owner=carpet-stain -d github_repo=template-e2e \
+            git-flow "$RUNNER_TEMP/render"
+
+      # One commit per run, pushed as a fresh branch off the sandbox's
+      # current main — mirrors the real bootstrap/re-render flow a
+      # consumer actually goes through (git-flow/README.md's runbook),
+      # not a synthetic shortcut. rsync --delete so a file the render no
+      # longer produces is actually removed, not just left stale.
+      - name: Push render as a new branch
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${E2E_REPO}.git" "$RUNNER_TEMP/e2e"
+          cd "$RUNNER_TEMP/e2e"
+          git checkout -b "$BRANCH"
+          rsync -a --delete --exclude .git "$RUNNER_TEMP/render/" ./
+          git add -A
+          # Synthetic committer identity — template-e2e is a disposable,
+          # per-run-discarded sandbox with no external audience, so
+          # verified-bot attribution isn't worth chasing here.
+          git -c user.name="project-starter-template e2e" -c user.email="e2e@users.noreply.github.com" \
+            commit -m "chore: e2e render $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push origin "$BRANCH"
+
+      - name: Open draft PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          body=$'Automated live-e2e run — carpet-stain/project-starter-template#48, run ${{ github.run_id }}.\n\nNo-Issue: automated e2e sandbox run, not a tracked change.'
+          gh pr create -R "$E2E_REPO" --draft --head "$BRANCH" --base main \
+            --title "chore: e2e render $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --body "$body"
+          number=$(gh pr view "$BRANCH" -R "$E2E_REPO" --json number -q .number)
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      # The one thing tier 1 (#41) structurally cannot exercise: pr-guards.yml
+      # and adr-guard.yml's job-level `if: draft == false` actually gating
+      # the three required checks, not a workflow-level skip that would read
+      # as passing to branch-protection instead (dotfiles' github.md edge
+      # case). `--required` matches template-e2e's ruleset exactly: single
+      # commit, conventional commit, adr guard (no extra_required_checks).
+      - name: Assert draft-gate stays quiet
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          timeout 120 gh pr checks "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --watch --required || true
+          checks=$(gh pr checks "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --required --json name,bucket)
+          echo "$checks" | jq .
+          count=$(jq 'length' <<<"$checks")
+          not_skipping=$(jq '[.[] | select(.bucket != "skipping")] | length' <<<"$checks")
+          if [ "$count" -ne 3 ] || [ "$not_skipping" -ne 0 ]; then
+            echo "::error::draft-gate regression — expected exactly 3 required checks, all 'skipping', while draft" >&2
+            exit 1
+          fi
+
+      - name: Flip PR ready
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: gh pr ready "${{ steps.pr.outputs.number }}" -R "$E2E_REPO"
+
+      - name: Poll for green required checks
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: timeout 600 gh pr checks "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --watch --required --fail-fast
+
+      - name: Rebase-merge
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: gh pr merge "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --rebase
+
+      # delete_branch_on_merge (main.tf, repo-wide) should have swept the
+      # branch already; confirm it actually fired rather than trusting Tofu
+      # state.
+      - name: Assert branch deleted post-merge
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          for _ in $(seq 1 12); do
+            gh api "repos/$E2E_REPO/branches/$BRANCH" >/dev/null 2>&1 || exit 0
+            sleep 5
+          done
+          echo "::error::branch $BRANCH still exists 60s after merge — delete_branch_on_merge did not fire" >&2
+          exit 1
