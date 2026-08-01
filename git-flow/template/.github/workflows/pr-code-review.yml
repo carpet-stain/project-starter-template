@@ -10,8 +10,9 @@ name: PR code review (advisory)
 # elevated session, same pattern as RELEASE_PAT. Without it the job skips
 # cleanly (green), it doesn't fail. The reviewer action is SHA-pinned (it
 # holds the key and reads the diff); swap the `uses:` line for a different
-# provider/action, or a DIY OpenAI call, if preferred. Set MODEL to a
-# current model of your choice.
+# provider/action, or a DIY OpenAI call, if preferred. MODEL is yours to
+# pick — re-verify a current frontier tier with structured-outputs support
+# against platform.openai.com/docs/models before changing it.
 #
 # Note: this action batches comments per file, so the prompt's `suggestion`
 # blocks post as copy-pasteable code, not GitHub's one-click-applyable
@@ -49,7 +50,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          MODEL: gpt-4o-mini
+          MODEL: gpt-5.6-sol
           LANGUAGE: English
           PROMPT: >-
             You are an independent code reviewer looking at one file's changes in a pull request — a different model than the one that wrote them, so bring genuinely independent eyes. For each issue: tag its severity (blocking / nit / pre-existing), name the line it's on, say what's wrong and why in a sentence or two, and when the fix is mechanical add a ```suggestion block with the exact replacement code. Most severe first. Be terse, skip praise, and say nothing when the changes are fine. You are advisory — a human approves the merge.
