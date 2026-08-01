@@ -1,0 +1,88 @@
+name: Bootstrap e2e sandbox main
+
+# One-time (or disaster-recovery) seeding of carpet-stain/template-e2e's
+# main branch. e2e-live.yml (#48) assumes main already exists and holds a
+# git-flow render -- this is what makes that assumption true in the first
+# place, before #48 can ever run for real.
+
+# Same rename workaround git-flow/README.md's own bootstrap runbook
+# describes for any infra-provisioned repo: a direct push to main is
+# rejected by the ruleset (no required-check runs exist yet for a bare
+# push, GH013), so this pushes to a throwaway branch and renames it to
+# main instead -- a rename doesn't re-trigger that push check. Guarded to
+# refuse running if main already exists, so a stray re-dispatch can't
+# clobber real seeded content.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  bootstrap:
+    name: seed main
+    runs-on: ubuntu-latest
+    env:
+      E2E_REPO: carpet-stain/template-e2e
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Read vended token from Bitwarden
+        id: bw
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+        with:
+          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
+          set_env: false
+          secrets: |
+            ${{ vars.BWS_VENDED_SECRET_ID }} > VENDED
+
+      - name: Extract token
+        id: token
+        env:
+          VENDED: ${{ steps.bw.outputs.VENDED }}
+        run: |
+          token=$(jq -r '.token // empty' <<<"$VENDED")
+          if [ -z "$token" ]; then
+            echo "::error::vended secret had no .token field" >&2
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to run if main already exists
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          if gh api "repos/$E2E_REPO/branches/main" >/dev/null 2>&1; then
+            echo "::error::main already exists on $E2E_REPO — this workflow is first-time-seeding only, refusing to overwrite" >&2
+            exit 1
+          fi
+
+      - name: Render git-flow payload
+        run: |
+          uvx copier copy --trust --defaults \
+            -d github_owner=carpet-stain -d github_repo=template-e2e \
+            git-flow "$RUNNER_TEMP/render"
+
+      - name: Push render and rename to main
+        id: push
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${E2E_REPO}.git" "$RUNNER_TEMP/e2e"
+          cd "$RUNNER_TEMP/e2e"
+          old_default=$(git symbolic-ref --short HEAD)
+          echo "old_default=$old_default" >> "$GITHUB_OUTPUT"
+          git checkout -b e2e-bootstrap-seed
+          rsync -a --delete --exclude .git "$RUNNER_TEMP/render/" ./
+          git add -A
+          git -c user.name="project-starter-template e2e" -c user.email="e2e@users.noreply.github.com" \
+            commit -m "chore: bootstrap e2e sandbox main"
+          git push origin e2e-bootstrap-seed
+          gh api "repos/$E2E_REPO/branches/e2e-bootstrap-seed/rename" -f new_name=main
+
+      - name: Delete the stale prior default branch
+        if: steps.push.outputs.old_default != 'main'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: gh api "repos/$E2E_REPO/git/refs/heads/${{ steps.push.outputs.old_default }}" -X DELETE
