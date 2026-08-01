@@ -1,0 +1,130 @@
+name: Live e2e release exercise (template-e2e)
+
+# Part of epic #47; #51's own live proof that a generated repo's
+# release-prepare.yml/release-publish.yml actually work end to end against
+# real GitHub state -- #41 verifies structurally, locally (the gated files
+# render, no unresolved jinja), never a real tag or `gh release create`.
+# Assumes #48's base e2e cycle already landed a release-automation-enabled
+# render on template-e2e's main (the current default,
+# copier.yml's include_release_automation: true) -- dispatch e2e-live.yml
+# first if main doesn't have cliff.toml/release-prepare.yml yet.
+on:
+  workflow_dispatch:
+
+env:
+  E2E_REPO: carpet-stain/template-e2e
+
+jobs:
+  release:
+    name: live release cycle
+    runs-on: ubuntu-latest
+    # Zero github.token permissions, same as e2e-live.yml: every API call
+    # goes through the vended cross-repo token below. release-prepare.yml's
+    # own PR-open step uses a *separate* secret (RELEASE_PAT, provisioned
+    # directly on template-e2e per git-flow/README.md's runbook) -- this
+    # workflow never touches that, it only dispatches and polls.
+    permissions: {}
+    steps:
+      - name: Read vended token from Bitwarden
+        id: bw
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+        with:
+          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
+          set_env: false
+          secrets: |
+            ${{ vars.BWS_VENDED_SECRET_ID }} > VENDED
+
+      - name: Extract token
+        id: token
+        env:
+          VENDED: ${{ steps.bw.outputs.VENDED }}
+        run: |
+          token=$(jq -r '.token // empty' <<<"$VENDED")
+          if [ -z "$token" ]; then
+            echo "::error::vended secret had no .token field" >&2
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch release-prepare.yml
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: gh workflow run release-prepare.yml -R "$E2E_REPO" -f bump=auto
+
+      - name: Wait for the release PR to appear
+        id: release_pr
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          for _ in $(seq 1 24); do
+            number=$(gh pr list -R "$E2E_REPO" --state open --json number,headRefName \
+              --jq '[.[] | select(.headRefName | startswith("release/"))][0].number // empty')
+            if [ -n "$number" ]; then
+              echo "number=$number" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::no release/* PR appeared within 2 minutes of dispatching release-prepare.yml" >&2
+          exit 1
+
+      - name: Verify the release PR touches CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          files=$(gh pr view "${{ steps.release_pr.outputs.number }}" -R "$E2E_REPO" --json files --jq '.files[].path')
+          echo "$files"
+          echo "$files" | grep -qx CHANGELOG.md || {
+            echo "::error::release PR doesn't touch CHANGELOG.md" >&2
+            exit 1
+          }
+
+      # Same GitHub-side lag e2e-live.yml already found: retry the merge
+      # itself, not just the check-poll.
+      - name: Poll for green required checks and merge
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          timeout 600 gh pr checks "${{ steps.release_pr.outputs.number }}" -R "$E2E_REPO" --watch --required --fail-fast
+          for _ in $(seq 1 6); do
+            gh pr merge "${{ steps.release_pr.outputs.number }}" -R "$E2E_REPO" --rebase && exit 0
+            sleep 5
+          done
+          echo "::error::rebase-merge of the release PR failed after retrying" >&2
+          exit 1
+
+      # release-publish.yml triggers on the release/* PR's own closed+merged
+      # event (no separate dispatch) -- the merge above already kicked it
+      # off.
+      - name: Wait for a real GitHub Release to appear
+        id: release
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          for _ in $(seq 1 24); do
+            tag=$(gh release list -R "$E2E_REPO" --limit 1 --json tagName,createdAt \
+              --jq 'sort_by(.createdAt) | last | .tagName // empty')
+            if [ -n "$tag" ]; then
+              echo "tag=$tag" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::no GitHub Release appeared within 2 minutes of merging the release PR" >&2
+          exit 1
+
+      - name: Verify the release's content
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          notes=$(gh release view "${{ steps.release.outputs.tag }}" -R "$E2E_REPO" --json body -q .body)
+          echo "$notes"
+          if [ -z "$notes" ]; then
+            echo "::error::release notes are empty" >&2
+            exit 1
+          fi
+          if grep -qE '\[\[|\{\{' <<<"$notes"; then
+            echo "::error::unresolved template delimiter left in release notes" >&2
+            exit 1
+          fi
