@@ -83,8 +83,11 @@ git -C "$T" -c core.hooksPath=/dev/null commit -qm "governance template output"
 
 # Fetch into an explicit temp ref, not FETCH_HEAD — in a linked worktree the
 # FETCH_HEAD the fetch writes and the one merge resolves can differ (a stale
-# shared entry made the merge silently no-op as "Already up to date").
-git fetch -q "$T" _retrofit-src:refs/heads/_retrofit-src
+# shared entry made the merge silently no-op as "Already up to date"). Forced
+# (+) because a leftover _retrofit-src from an interrupted or cross-worktree
+# run makes this a non-fast-forward update that a plain fetch silently drops,
+# merging against stale content while reporting success.
+git fetch -q "$T" +_retrofit-src:refs/heads/_retrofit-src
 trap 'rm -rf "$T"; git branch -qD _retrofit-src 2>/dev/null || true' EXIT
 # --no-ff: some setups pin merge.ff=only, which hard-fails a real merge.
 if git merge --allow-unrelated-histories --no-ff \
