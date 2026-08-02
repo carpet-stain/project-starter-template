@@ -56,10 +56,12 @@ it — `copier copy`/`py-new` onto an empty dir has no collisions.
   language-agnostic linters via `just lint --tag base`, gated on
   `draft == false`. A language overlay never touches it — it ships its own
   workflow (e.g. `test.yml`) running its own lefthook tag slice (ADR-0020)
-- `.github/workflows/pr-code-review.yml` — advisory review of
-  `architecture`-labeled PRs by a non-Anthropic model, never a required
-  check. Inert until an `OPENAI_API_KEY` repo secret exists; skips cleanly
-  (green) without it — see the workflow's own comments.
+- `.github/workflows/pr-code-review.yml` — advisory review by a
+  non-Anthropic model, never a required check. Triggers on a PR carrying
+  `needs-review`, or on one closing a `plan-approved` issue (plan-conformance
+  review). Inert until an `OPENAI_API_KEY` repo secret exists; skips cleanly
+  (green) without it — see `scripts/pr-review/run.mjs` and the workflow's own
+  comments.
 - `docs/adr/` scaffolding — `README.md` (what an ADR is, when to write one),
   `templates/template.md` (the Nygard template), `scripts/new-adr.sh` (stamps
   the next-numbered ADR from it — run via `just adr`, no adr-tools dependency),

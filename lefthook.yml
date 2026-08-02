@@ -125,6 +125,15 @@ pre-commit:
         - "python/template/**"
       run: scripts/lint-templates.sh --jinja {staged_files}
 
+    # Unit tests for the vendored advisory-reviewer script (#60) — this
+    # repo's own coverage of code it ships, same reasoning as j2lint above:
+    # specific to hosting the payload, not part of a generated repo's own
+    # `just lint --tag base`.
+    - name: pr-review-test
+      glob:
+        - "git-flow/template/scripts/pr-review/**"
+      run: node --test "git-flow/template/scripts/pr-review/*.test.mjs"
+
 pre-push:
   jobs:
     - name: envrc-local-example-sync

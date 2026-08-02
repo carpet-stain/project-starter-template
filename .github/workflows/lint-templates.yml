@@ -84,5 +84,12 @@ jobs:
             | tar -xz -O bin/ec-linux-amd64 | sudo tee /usr/local/bin/editorconfig-checker > /dev/null
           sudo chmod +x /usr/local/bin/editorconfig-checker
 
+      # The vendored advisory-reviewer's own unit tests (#60) — this repo's
+      # coverage of code it ships in the payload, not part of a generated
+      # repo's own lint (git-flow/template/.github/workflows/lint.yml.jinja
+      # never wires this in — see ADR-0020's base/overlay boundary).
+      - name: Run pr-review vendored unit tests
+        run: node --test "git-flow/template/scripts/pr-review/*.test.mjs"
+
       - name: Run copier-template render-and-verify checks
         run: just lint-templates
