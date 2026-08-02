@@ -113,7 +113,10 @@ it — `copier copy`/`py-new` onto an empty dir has no collisions.
   write) so its release PR triggers `pr-guards.yml` for real instead of
   landing in an approval-required state — see the workflow's own comments.
   Add it by hand: repo Settings → Secrets and variables → Actions.
-- **Labels.** Tracked separately — see the Bootstrap runbook below.
+- **Labels.** Several of the workflows above gate on a label that has to
+  already exist on the repo — GitHub rejects applying a label that isn't
+  defined, so a missing one doesn't error, it just makes the gate never
+  fire. Tracked separately — see step 3 of the Bootstrap runbook below.
 - **Global git config** (`committemplate`, `attributes`, `config`, `ignore`).
   Those are this machine's `$XDG_CONFIG_HOME/git/*`, deployed once by
   `macos/deploy.zsh` / `linux/deploy.sh` — already in effect for every repo
@@ -158,8 +161,19 @@ working-tree file content).
    422 against the ruleset that already exists.
 
 3. **Apply labels** — nothing to do for a repo created via infra's
-   `repos.tf` (see the note under step 2 above). There's no other tracked
-   path for applying labels to a repo bootstrapped outside infra.
+   `repos.tf` (see the note under step 2 above): `local.labels` is the
+   canonical definition, applied to every `carpet-stain` repo including this
+   template's label-gated CI needs. There's no other tracked path for
+   applying labels to a repo bootstrapped outside infra — a consumer outside
+   `carpet-stain` has to create the ones this template's CI reads by hand
+   (repo Settings → Labels, or the GitHub API), or that CI silently never
+   fires:
+   - `architecture` — `adr-guard.yml`'s required-ADR gate
+   - `needs-review` — requests `pr-code-review.yml`'s advisory review
+     on demand
+   - `plan-approved` on an issue a PR closes — auto-triggers
+     `pr-code-review.yml`'s plan-conformance review
+
 4. **Apply branch protection** — same directory:
    `env -u GH_TOKEN -u GITHUB_TOKEN project-starter-template/scripts/bootstrap-branch-protection.sh`.
    Must come after step 2: it hardcodes `single commit` + `conventional
