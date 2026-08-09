@@ -12,12 +12,19 @@
 # makes the ruleset the single source of truth and stops the drift recurring.
 #
 # Needs Administration scope, which the routine scoped GH_TOKEN deliberately
-# lacks — run with `env -u GH_TOKEN -u GITHUB_TOKEN` so gh falls back to a
-# full-admin session. Both vars must drop: `.envrc` aliases GITHUB_TOKEN to the
-# same scoped token (for git-cliff) and gh prefers GITHUB_TOKEN, so dropping
-# GH_TOKEN alone silently keeps the scoped token active. Never wire this into
-# CI or a copier post-gen task: it must stay a deliberate, human-invoked step,
-# separate from the routine credential.
+# lacks — run through infra's Keychain-gated admin-token wrapper (infra
+# ADR-0013), from this repo's checkout:
+#   <infra>/scripts/with-infra-secrets.sh --gh-admin env -u GH_TOKEN \
+#     scripts/bootstrap-branch-protection.sh [args]
+# GH_TOKEN must drop: gh prefers it over the GITHUB_TOKEN the wrapper
+# exports. Never wire this into CI or a copier post-gen task: it must stay
+# a deliberate, human-invoked step, separate from the routine credential.
+#
+# Never run this against a repo infra's tofu already governs (its
+# local.repos map): this script writes strict:false where the managed
+# ruleset holds strict:true, so a run reverts the ruleset and surfaces as
+# drift (caught live during infra#150). It's for repos *before* they're
+# adopted there — see the Future direction note below.
 #
 # usage: scripts/bootstrap-branch-protection.sh [branch] [extra-check ...]
 #   branch        protected branch (default: repo's default branch)
@@ -45,7 +52,7 @@ if [[ $# -ge 1 ]]; then
 else
   if ! BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>&1); then
     echo "error: failed to detect the default branch — check gh auth." >&2
-    echo "retry with: env -u GH_TOKEN -u GITHUB_TOKEN $0 [branch] [extra-check ...]" >&2
+    echo "retry via infra's wrapper: <infra>/scripts/with-infra-secrets.sh --gh-admin env -u GH_TOKEN $0 [branch] [extra-check ...]" >&2
     exit 1
   fi
 fi
@@ -55,7 +62,7 @@ RULESET_NAME="protect ${BRANCH}"
 
 if ! RULESETS_JSON=$(gh api "repos/{owner}/{repo}/rulesets" 2>&1); then
   echo "error: failed to list rulesets — likely missing Administration scope." >&2
-  echo "retry with: env -u GH_TOKEN -u GITHUB_TOKEN $0 ${BRANCH} ${EXTRA_CHECKS[*]}" >&2
+  echo "retry via infra's wrapper: <infra>/scripts/with-infra-secrets.sh --gh-admin env -u GH_TOKEN $0 ${BRANCH} ${EXTRA_CHECKS[*]}" >&2
   exit 1
 fi
 
