@@ -18,30 +18,43 @@ jobs:
   release:
     name: live release cycle
     runs-on: ubuntu-latest
-    # Zero github.token permissions, same as e2e-live.yml: every API call
-    # goes through the vended cross-repo token below. release-prepare.yml's
-    # own PR-open step uses a *separate* secret (RELEASE_PAT, provisioned
-    # directly on template-e2e per git-flow/README.md's runbook) -- this
-    # workflow never touches that, it only dispatches and polls.
-    permissions: {}
+    # id-token: write is the OIDC assertion this job needs to assume
+    # infra's project-starter-template-e2e-read role, job-scoped per
+    # infra's ADR-0010 step 5 (infra#147) — the ambient github.token stays
+    # unused, same as e2e-live.yml: every API call goes through the vended
+    # cross-repo token below. release-prepare.yml's own PR-open step uses a
+    # *separate* secret (RELEASE_PAT, provisioned directly on template-e2e
+    # per git-flow/README.md's runbook) -- this workflow never touches
+    # that, it only dispatches and polls.
+    permissions:
+      id-token: write
     steps:
-      - name: Read vended token from Bitwarden
-        id: bw
-        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+      - name: Assume project-starter-template-e2e-read via OIDC
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
-          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
-          set_env: false
-          secrets: |
-            ${{ vars.BWS_VENDED_SECRET_ID }} > VENDED
+          role-to-assume: ${{ vars.AWS_VEND_READ_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Mirrors infra's vend-token.yml inline single-parameter read: masked
+      # before it ever lands in GITHUB_OUTPUT, multiline-safe delimiter
+      # (the value is a JSON blob, not guaranteed single-line-safe).
+      - name: Read vended token from SSM
+        id: ssm
+        run: |
+          value="$(aws ssm get-parameter --name /runtime/vended-token \
+            --with-decryption --query Parameter.Value --output text)"
+          echo "::add-mask::$value"
+          delim="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+          { echo "VENDED<<${delim}"; printf '%s\n' "$value"; echo "$delim"; } >>"$GITHUB_OUTPUT"
 
       - name: Extract token
         id: token
         env:
-          VENDED: ${{ steps.bw.outputs.VENDED }}
+          VENDED: ${{ steps.ssm.outputs.VENDED }}
         run: |
           token=$(jq -r '.token // empty' <<<"$VENDED")
           if [ -z "$token" ]; then
-            echo "::error::vended secret had no .token field" >&2
+            echo "::error::vended token parameter had no .token field" >&2
             exit 1
           fi
           echo "::add-mask::$token"
