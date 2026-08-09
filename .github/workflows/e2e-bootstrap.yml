@@ -15,12 +15,15 @@ name: Bootstrap e2e sandbox main
 on:
   workflow_dispatch:
 
-permissions: {}
-
 jobs:
   bootstrap:
     name: seed main
     runs-on: ubuntu-latest
+    # id-token: write is the OIDC assertion this job needs to assume
+    # infra's project-starter-template-e2e-read role, job-scoped per
+    # infra's ADR-0010 step 5 (infra#147) — never workflow-level.
+    permissions:
+      id-token: write
     env:
       E2E_REPO: carpet-stain/template-e2e
     steps:
@@ -35,19 +38,28 @@ jobs:
           node-version: lts/*
       - run: npm install --global lefthook
 
-      - name: Read vended token from Bitwarden
-        id: bw
-        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+      - name: Assume project-starter-template-e2e-read via OIDC
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
-          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
-          set_env: false
-          secrets: |
-            ${{ vars.BWS_VENDED_SECRET_ID }} > VENDED
+          role-to-assume: ${{ vars.AWS_VEND_READ_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Mirrors infra's vend-token.yml inline single-parameter read: masked
+      # before it ever lands in GITHUB_OUTPUT, multiline-safe delimiter
+      # (the value is a JSON blob, not guaranteed single-line-safe).
+      - name: Read vended token from SSM
+        id: ssm
+        run: |
+          value="$(aws ssm get-parameter --name /runtime/vended-token \
+            --with-decryption --query Parameter.Value --output text)"
+          echo "::add-mask::$value"
+          delim="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+          { echo "VENDED<<${delim}"; printf '%s\n' "$value"; echo "$delim"; } >>"$GITHUB_OUTPUT"
 
       - name: Extract token
         id: token
         env:
-          VENDED: ${{ steps.bw.outputs.VENDED }}
+          VENDED: ${{ steps.ssm.outputs.VENDED }}
         run: |
           token=$(jq -r '.token // empty' <<<"$VENDED")
           if [ -z "$token" ]; then
