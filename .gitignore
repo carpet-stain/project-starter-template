@@ -2,3 +2,8 @@
 # A language overlay's own .gitignore needs hand-merging with this one;
 # copier can't merge text files across templates.
 .envrc.local
+
+# Agent memory is local-only, never committed to this public repo
+# (carpet-stain/dotfiles#528; ADR-0036 there supersedes the committed-file
+# model). Files stay on disk and still auto-load.
+.claude/agent-memory/
