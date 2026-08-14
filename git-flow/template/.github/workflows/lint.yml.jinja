@@ -1,10 +1,7 @@
 name: Lint
 
-# The base lint workflow: language-agnostic linters only, selected via the
-# lefthook `base` tag. A language overlay never touches this file — it ships
-# its own workflow (e.g. test.yml) running its own tag slice with its own
-# toolchain. Disjoint file ownership by design; see ADR-0020 in the template's
-# source repo.
+# Language-agnostic linters only (lefthook `base` tag); an overlay ships its
+# own workflow/tag/toolchain instead. Disjoint file ownership — see ADR-0020.
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
@@ -21,20 +18,14 @@ jobs:
   lint:
     name: lint
     runs-on: ubuntu-latest
-    # Draft PRs open early and take WIP pushes; a skipped-via-if job reads as
-    # passing to required-status-check branch protection, not failing, so this
-    # stays quiet until ready_for_review re-triggers it — same job-level gate
-    # as pr-guards.yml.
+    # Job-level if, not workflow-level: a workflow-level skip reads as passing to
+    # required-status-check branch protection. Same gate as pr-guards.yml.
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
 
-      # Portable toolchain, no Homebrew (#276): a bootstrapped repo has no
-      # Homebrew tie, so install each linter its native way. markdownlint-cli2,
-      # prettier, and lefthook itself are npm packages; just and the Go tools
-      # (actionlint, yamlfmt) come from a setup action and pinned release
-      # binaries. `just lint` still drives the shared lefthook, so CI and local
-      # can't drift.
+      # Portable toolchain, no Homebrew (#276): install each linter its native way
+      # instead of assuming Homebrew. `just lint` still drives the shared lefthook.
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
@@ -78,9 +69,7 @@ jobs:
             | tar -xz -O bin/ec-linux-amd64 | sudo tee /usr/local/bin/editorconfig-checker > /dev/null
           sudo chmod +x /usr/local/bin/editorconfig-checker
 
-      # `just lint` wraps `lefthook run pre-commit --all-files` — the same
-      # entry point contributors run, here scoped to the base-owned jobs via
-      # their lefthook tag. Locally (no tag filter) the full union runs on
-      # every commit.
+      # `just lint` is the same entry point contributors run locally, scoped
+      # here to the base tag; the untagged local run covers the full union.
       - name: Run lint/format checks
         run: just lint --tag base --no-tty

@@ -1,9 +1,7 @@
 name: PR guards
 
-# Enforces the one-commit-per-PR + rebase-merge workflow (AGENTS.md): a PR must
-# be exactly one commit whose subject is a Conventional Commit, so rebase-merge
-# lands a single clean, author-written commit on main; and it must close an
-# issue or declare why not (dotfiles#449 — see that job's own comment).
+# Enforces the one-commit-per-PR + rebase-merge workflow (AGENTS.md) and
+# that every PR closes an issue or declares why not (dotfiles#449).
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
@@ -21,9 +19,8 @@ jobs:
   single-commit:
     name: single commit
     runs-on: ubuntu-latest
-    # Draft PRs open early and take WIP pushes; a skipped-via-if job reads as
-    # passing to required-status-check branch protection, not failing, so
-    # this stays quiet until ready_for_review re-triggers it for real.
+    # Job-level `if:` — a skipped-via-if job reads as passing to
+    # required-status-check branch protection, not failing.
     if: github.event.pull_request.draft == false
     steps:
       - name: Assert the PR is exactly one commit
@@ -46,9 +43,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      # The commit that rebase-merges onto main is what git-cliff
-      # reads for the changelog, so its subject must be a Conventional Commit.
-      # Scope stays optional/unrestricted.
+      # The commit that rebase-merges onto main is what git-cliff reads
+      # for the changelog, so its subject must be a Conventional Commit.
       - name: Validate Conventional Commit subject
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
@@ -68,16 +64,12 @@ jobs:
   issue-link:
     name: issue link
     runs-on: ubuntu-latest
-    # release-prepare.yml's release/* PRs close no issue by design — exempted
-    # here in-guard rather than having that workflow inject a No-Issue body
-    # marker, so the whole contract stays in this one file (dotfiles#449).
+    # release/* PRs close no issue by design — exempted here in-guard so
+    # the whole contract stays in this one file (dotfiles#449).
     if: github.event.pull_request.draft == false && !startsWith(github.event.pull_request.head.ref, 'release/')
     steps:
-      # closingIssuesReferences is GitHub's own computed field (dotfiles#449) —
-      # not a body-text regex — so it reflects the link however it was made (a
-      # closing keyword or a manual Development-panel link), and a typo'd
-      # keyword that failed to actually link fails this check instead of
-      # passing it.
+      # closingIssuesReferences is GitHub's own computed field (dotfiles#449),
+      # not a body-text regex — a typo'd closing keyword fails this check too.
       - name: Require a closing issue reference or a No-Issue marker
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -86,9 +78,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          # shellcheck disable=SC2016 # single-quoted: these are GraphQL's own
-          # $owner/$repo/$number variables, passed via -f/-F below — must not
-          # expand as bash variables.
+          # shellcheck disable=SC2016 # single-quoted GraphQL vars, not bash
+          # ($owner/$repo/$number passed via -f/-F below).
           count=$(gh api graphql -f query='
             query($owner: String!, $repo: String!, $number: Int!) {
               repository(owner: $owner, name: $repo) {

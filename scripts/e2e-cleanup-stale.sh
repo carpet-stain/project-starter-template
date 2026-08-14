@@ -6,12 +6,8 @@
 # (#42's decision comment, Q5): self-healing, every future run cleans up
 # after any prior crash, no cron/machinery.
 #
-# THRESHOLD_MINUTES is provisional — set generously above a rough estimate
-# of one run's real duration (render + push + draft-gate wait + ready-flip +
-# check-poll + merge), since #48's live run hadn't executed yet when this was
-# written. Revisit once real run durations are observed (#50's own acceptance
-# criterion), tightening it so a stale run is swept sooner without risking a
-# still-running one getting swept out from under itself.
+# THRESHOLD_MINUTES is provisional (set above a rough duration estimate, #48
+# hadn't run live yet) — tighten once real run durations are observed (#50).
 #
 # usage: GH_TOKEN=<token-with-write-on-template-e2e> scripts/e2e-cleanup-stale.sh
 set -euo pipefail
@@ -24,11 +20,8 @@ BRANCH_PATTERN='^e2e/'
 
 cutoff=$(date -u -d "-${THRESHOLD_MINUTES} minutes" +%Y-%m-%dT%H:%M:%SZ)
 
-# gh pr list's own --search can't filter by branch-name-prefix + age together,
-# so pull the candidate set (number, branch, age) and filter with real jq
-# (gh's own --jq has no --arg passthrough) — same shape as the
-# render-then-verify scripts' preference for one clear pass over a chain of
-# flag-encoded conditions.
+# gh pr list --search can't filter branch-prefix + age together, so pull the
+# candidate set and filter with real jq (gh's own --jq has no --arg passthrough).
 mapfile -t stale < <(
   gh pr list -R "$REPO" --state open --json number,headRefName,createdAt |
     jq -r --arg pattern "$BRANCH_PATTERN" --arg cutoff "$cutoff" '

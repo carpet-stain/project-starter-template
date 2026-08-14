@@ -1,13 +1,7 @@
 name: Lint templates
 
-# Render-then-verify for the copier templates this repo hosts (git-flow
-# base, python overlay) — see scripts/lint-templates.sh's own header for the
-# strategy. Separate workflow from lint.yml: the script now runs each
-# render's own `lefthook run pre-commit/pre-push --all-files`, so this job's
-# toolchain mirrors git-flow/template/.github/workflows/lint.yml.jinja's own
-# install steps (plus uv/taplo, which that workflow doesn't need) — a tool a
-# rendered lefthook job requires but this job doesn't provision fails here,
-# not in a consumer (project-starter-template#41).
+# Render-then-verify for the copier templates — see scripts/lint-templates.sh's
+# own header. Mirrors the rendered lint.yml.jinja's toolchain, so a missing tool fails here, not in a consumer (#41).
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
@@ -28,9 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Provides `uv`/`uvx` — renders the templates (copier) and runs the
-      # raw jinja check (j2lint); the python overlay render's own
-      # ruff/pyright come from its own `uv sync`, not a separate install.
+      # Provides `uv`/`uvx` for rendering (copier) and the jinja check
+      # (j2lint) — the python overlay's ruff/pyright come from its own `uv sync`.
       - uses: astral-sh/setup-uv@v7
 
       - uses: extractions/setup-just@v4
@@ -55,10 +48,8 @@ jobs:
       - name: Install Node lint tools
         run: npm install --global lefthook markdownlint-cli2 prettier
 
-      # Same tools, same pinned versions, as
-      # git-flow/template/.github/workflows/lint.yml.jinja's own install
-      # steps — kept in sync by hand (the same doubled-list cost #27 already
-      # accepted for the shipped payload vs. this repo's live copy).
+      # Same tools/versions as the rendered lint.yml.jinja's install steps —
+      # kept in sync by hand (doubled-list cost #27 already accepted).
       - name: Install gitleaks
         env:
           GITLEAKS_VERSION: "8.30.1"
@@ -84,10 +75,8 @@ jobs:
             | tar -xz -O bin/ec-linux-amd64 | sudo tee /usr/local/bin/editorconfig-checker > /dev/null
           sudo chmod +x /usr/local/bin/editorconfig-checker
 
-      # The vendored advisory-reviewer's own unit tests (#60) — this repo's
-      # coverage of code it ships in the payload, not part of a generated
-      # repo's own lint (git-flow/template/.github/workflows/lint.yml.jinja
-      # never wires this in — see ADR-0020's base/overlay boundary).
+      # Vendored advisory-reviewer's own unit tests (#60) — this repo's
+      # coverage, not wired into a generated repo's lint (ADR-0020's base/overlay boundary).
       - name: Run pr-review vendored unit tests
         run: node --test "git-flow/template/scripts/pr-review/*.test.mjs"
 

@@ -60,10 +60,8 @@ branch=${branch:-main}
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
-# --skip-tasks: post-gen tasks (git init, lefthook install, uv sync) make a
-# live repo work; a merge source doesn't need them, and skipping keeps
-# generated artifacts like uv.lock out of the merge. The templates write no
-# copier-answers file (ADR-0021), so there's nothing update-related to carry.
+# --skip-tasks: a merge source doesn't need post-gen tasks (git init, lefthook
+# install, uv sync) — skipping keeps generated artifacts like uv.lock out of the merge.
 uvx copier copy --trust --skip-tasks --defaults \
   -d github_owner="$owner" -d github_repo="$repo" -d protected_branch="$branch" \
   "$template_repo_dir/git-flow" "$T"
@@ -81,12 +79,8 @@ git -C "$T" init -q -b _retrofit-src
 git -C "$T" add -A
 git -C "$T" -c core.hooksPath=/dev/null commit -qm "governance template output"
 
-# Fetch into an explicit temp ref, not FETCH_HEAD — in a linked worktree the
-# FETCH_HEAD the fetch writes and the one merge resolves can differ (a stale
-# shared entry made the merge silently no-op as "Already up to date"). Forced
-# (+) because a leftover _retrofit-src from an interrupted or cross-worktree
-# run makes this a non-fast-forward update that a plain fetch silently drops,
-# merging against stale content while reporting success.
+# Explicit temp ref, not FETCH_HEAD (stale in a linked worktree, no-op'ing the
+# merge). Forced (+): a leftover ref from a prior run would else be silently dropped.
 git fetch -q "$T" +_retrofit-src:refs/heads/_retrofit-src
 trap 'rm -rf "$T"; git branch -qD _retrofit-src 2>/dev/null || true' EXIT
 # --no-ff: some setups pin merge.ff=only, which hard-fails a real merge.

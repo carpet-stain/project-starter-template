@@ -1,13 +1,7 @@
 name: Live e2e release exercise (template-e2e)
 
-# Part of epic #47; #51's own live proof that a generated repo's
-# release-prepare.yml/release-publish.yml actually work end to end against
-# real GitHub state -- #41 verifies structurally, locally (the gated files
-# render, no unresolved jinja), never a real tag or `gh release create`.
-# Assumes #48's base e2e cycle already landed a release-automation-enabled
-# render on template-e2e's main (the current default,
-# copier.yml's include_release_automation: true) -- dispatch e2e-live.yml
-# first if main doesn't have cliff.toml/release-prepare.yml yet.
+# Epic #47 (#51): proves release-prepare.yml/release-publish.yml work
+# live, unlike #41's local-only render check. Needs #48's e2e-live run first.
 on:
   workflow_dispatch:
 
@@ -18,14 +12,8 @@ jobs:
   release:
     name: live release cycle
     runs-on: ubuntu-latest
-    # id-token: write is the OIDC assertion this job needs to assume
-    # infra's project-starter-template-e2e-read role, job-scoped per
-    # infra's ADR-0010 step 5 (infra#147) — the ambient github.token stays
-    # unused, same as e2e-live.yml: every API call goes through the vended
-    # cross-repo token below. release-prepare.yml's own PR-open step uses a
-    # *separate* secret (RELEASE_PAT, provisioned directly on template-e2e
-    # per git-flow/README.md's runbook) -- this workflow never touches
-    # that, it only dispatches and polls.
+    # OIDC assertion to assume infra's project-starter-template-e2e-read
+    # role, job-scoped per infra ADR-0010 step 5 (infra#147).
     permissions:
       id-token: write
     steps:
@@ -35,9 +23,8 @@ jobs:
           role-to-assume: ${{ vars.AWS_VEND_READ_ROLE_ARN }}
           aws-region: us-east-1
 
-      # Mirrors infra's vend-token.yml inline single-parameter read: masked
-      # before it ever lands in GITHUB_OUTPUT, multiline-safe delimiter
-      # (the value is a JSON blob, not guaranteed single-line-safe).
+      # Mirrors infra's vend-token.yml: masked before GITHUB_OUTPUT, with a
+      # multiline-safe delimiter since the value is a JSON blob.
       - name: Read vended token from SSM
         id: ssm
         run: |
@@ -107,9 +94,8 @@ jobs:
           echo "::error::rebase-merge of the release PR failed after retrying" >&2
           exit 1
 
-      # release-publish.yml triggers on the release/* PR's own closed+merged
-      # event (no separate dispatch) -- the merge above already kicked it
-      # off.
+      # release-publish.yml triggers on the release/* PR's closed+merged
+      # event — no separate dispatch; the merge above already kicked it off.
       - name: Wait for a real GitHub Release to appear
         id: release
         env:
