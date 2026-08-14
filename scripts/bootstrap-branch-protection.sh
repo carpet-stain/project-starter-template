@@ -68,10 +68,8 @@ fi
 
 EXISTING_ID=$(echo "$RULESETS_JSON" | jq -r --arg name "$RULESET_NAME" '.[] | select(.name == $name) | .id')
 
-# pr-guards.yml ships in every template repo, so its two checks are always
-# required. adr-guard.yml's check is required too — but only where the guard
-# actually ships: gate on the file so re-running this on a repo that opts out
-# doesn't pin a required check that never reports and would block every PR.
+# Gate adr-guard's check on the workflow file's presence — pinning it
+# unconditionally would block every PR on a repo that opted out.
 REQUIRED_CHECKS=("single commit" "conventional commit")
 if [[ -f .github/workflows/adr-guard.yml ]]; then
   REQUIRED_CHECKS+=("adr guard")
@@ -115,11 +113,8 @@ else
   echo "$PAYLOAD" | gh api "repos/{owner}/{repo}/rulesets" -X POST --input - >/dev/null
 fi
 
-# Clear the legacy classic branch-protection rule now that the ruleset above is
-# in place — do it after, so `$BRANCH` is never left with neither system
-# protecting it. GET distinguishes "protection exists" (200) from "not
-# protected" (404) reliably; DELETE on an unprotected branch 403s, so gate on
-# the GET rather than swallowing a blind DELETE's error. Ruleset-only from here.
+# Runs after the ruleset above so $BRANCH is never briefly unprotected by
+# neither system. GET-then-DELETE, not blind DELETE: DELETE 403s if unprotected.
 if gh api "repos/{owner}/{repo}/branches/${BRANCH}/protection" >/dev/null 2>&1; then
   echo "legacy classic protection present on '${BRANCH}' — deleting (ruleset is source of truth)."
   gh api --method DELETE "repos/{owner}/{repo}/branches/${BRANCH}/protection" >/dev/null

@@ -1,10 +1,7 @@
 name: ADR guard
 
-# Requires an ADR when a PR is labeled `architecture`: an architecturally
-# significant change must ship a distilled decision record (docs/adr/) instead
-# of merging and leaving the "why" to be excavated from closed issues/PRs later.
-# Presence, not significance — a human applies the label; this only checks that a
-# labeled PR touches docs/adr/. See docs/adr/README.md for what an ADR is.
+# Architecture-labeled PRs must touch docs/adr/, or the decision goes
+# unrecorded. Checks presence only (label is a human call) — see docs/adr/README.md.
 on:
   pull_request:
     # labeled/unlabeled so applying or removing the label re-evaluates the gate;
@@ -23,16 +20,12 @@ jobs:
   adr-guard:
     name: adr guard
     runs-on: ubuntu-latest
-    # Per-job draft gate, never workflow-level: a job skipped via a job-level
-    # `if:` reads as passing to required-status-check branch protection, so this
-    # stays quiet on draft WIP and re-triggers for real at ready_for_review.
+    # Job-level if, not workflow-level: a workflow-level skip reads as passing to
+    # required-status-check branch protection. Stays quiet on drafts, fires at ready_for_review.
     if: github.event.pull_request.draft == false
     steps:
-      # The label gate is a STEP condition, not a job-level `if:`. As a required
-      # status check, adr-guard must always run and report a conclusion: an
-      # unlabeled PR reports success (not skipped — a skipped required check sits
-      # pending forever and blocks the merge). Only a labeled PR missing an ADR
-      # fails, so the check is safe to require on every PR.
+      # Step-level if, not job-level: a required check must always report a
+      # conclusion, or a skipped run sits pending forever and blocks merge.
       - uses: actions/checkout@v4
         if: contains(github.event.pull_request.labels.*.name, 'architecture')
         with:

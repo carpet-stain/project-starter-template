@@ -1,35 +1,17 @@
 name: Live e2e (template-e2e)
 
-# Dispatch-triggered live exercise of the git-flow payload against
-# carpet-stain/template-e2e, a permanent sandbox provisioned by infra's
-# repos.tf. #41/lint-templates.yml verify the rendered output locally
-# (copier render + the rendered repo's own lefthook checks); this verifies
-# it against actual live GitHub behavior — branch rulesets really enforcing
-# what they declare, the draft-PR gate's job-level `if:` actually staying
-# quiet until ready, a real rebase-merge, a real branch deletion. Design:
-# project-starter-template#42's decision comment. Part of epic #47.
+# Live counterpart to #41: proves rulesets, the draft-gate, rebase-merge,
+# and branch deletion actually work against real GitHub. See #42, epic #47.
 
-# Auth: template-e2e is a different repo than this one, so the ambient
-# `github.token` (scoped to this repo only) can't reach it. Assumes infra's
-# `project-starter-template-e2e-read` OIDC role and reads the infra-vended
-# cross-repo token from SSM instead (docs/CONSUMING-SECRETS.md's "CI"
-# recipe, infra's ADR-0010, infra#147) — the same token a local/agent shell
-# reads, scoped to {contents, issues, pull_requests, actions}: write +
-# checks: read over template-e2e (infra PR #134/#135). Needs one thing
-# provisioned by a human in this repo's own Settings (never self-service —
-# the trust boundary is the OIDC role's sub condition, applied only via
-# infra's `just tofu-iam` with its bootstrap key, so an agent can't
-# provision this itself): a variable `AWS_VEND_READ_ROLE_ARN` (the role's
-# ARN, non-secret).
+# ambient github.token can't reach template-e2e (a different repo) — uses
+# infra's vended cross-repo token instead (infra ADR-0010, infra#147).
 on:
   workflow_dispatch:
 
 concurrency:
   group: e2e-live
-  # Never cancel a run mid-flight: it may already be mid-merge against the
-  # sandbox, and a cancelled run's own branch/PR is exactly what #50's
-  # crash-cleanup preamble exists to sweep up on the *next* run, not what a
-  # cancellation should race against.
+  # Never cancel mid-flight — it may be mid-merge; #50's crash-cleanup
+  # preamble sweeps up an aborted run's branch/PR on the *next* run.
   cancel-in-progress: false
 
 env:
@@ -40,11 +22,8 @@ jobs:
   e2e:
     name: live e2e
     runs-on: ubuntu-latest
-    # id-token: write is the OIDC assertion this job needs to assume
-    # infra's project-starter-template-e2e-read role, job-scoped per
-    # infra's ADR-0010 step 5 (infra#147) — the ambient github.token stays
-    # unused: every GitHub API call in this job goes through the vended
-    # cross-repo token below.
+    # OIDC assertion to assume infra's project-starter-template-e2e-read
+    # role, job-scoped per infra ADR-0010 step 5 (infra#147).
     permissions:
       id-token: write
     steps:
@@ -52,9 +31,8 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
 
-      # copier's own post-gen task list (_tasks in copier.yml) runs
-      # `lefthook install` -- needs the binary present regardless of
-      # whether this workflow ever runs a lefthook check itself.
+      # copier's post-gen tasks run `lefthook install` — needs the binary
+      # present even though this job runs no lefthook check itself.
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
@@ -66,9 +44,8 @@ jobs:
           role-to-assume: ${{ vars.AWS_VEND_READ_ROLE_ARN }}
           aws-region: us-east-1
 
-      # Mirrors infra's vend-token.yml inline single-parameter read: masked
-      # before it ever lands in GITHUB_OUTPUT, multiline-safe delimiter
-      # (the value is a JSON blob, not guaranteed single-line-safe).
+      # Mirrors infra's vend-token.yml: masked before GITHUB_OUTPUT, with a
+      # multiline-safe delimiter since the value is a JSON blob.
       - name: Read vended token from SSM
         id: ssm
         run: |
@@ -102,30 +79,22 @@ jobs:
             -d github_owner=carpet-stain -d github_repo=template-e2e \
             git-flow "$RUNNER_TEMP/render"
 
-      # One commit per run, pushed as a fresh branch off the sandbox's
-      # current main — mirrors the real bootstrap/re-render flow a
-      # consumer actually goes through (git-flow/README.md's runbook),
-      # not a synthetic shortcut. rsync --delete so a file the render no
-      # longer produces is actually removed, not just left stale.
+      # Mirrors the real consumer re-render flow (git-flow/README.md's
+      # runbook); rsync --delete removes files the render no longer produces.
       - name: Push render as a new branch
         id: push
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
-          # --branch main, not whatever the repo's default branch happens to
-          # be set to (they can diverge — e.g. a stale leftover branch left
-          # as default from a prior manual test) — this workflow's PR always
-          # targets main explicitly below, so the branch it forks from must
-          # match, not just whatever `git clone` defaults to.
+          # --branch main explicitly — the repo's default branch can diverge
+          # (e.g. stale leftover from a prior manual test); PR below targets main.
           git clone --branch main "https://x-access-token:${GH_TOKEN}@github.com/${E2E_REPO}.git" "$RUNNER_TEMP/e2e"
           cd "$RUNNER_TEMP/e2e"
           git checkout -b "$BRANCH"
           rsync -a --delete --exclude .git "$RUNNER_TEMP/render/" ./
           git add -A
-          # A render identical to main's current content is a legitimate,
-          # common outcome (nothing in the template changed since the last
-          # run) — not a failure. Skip the rest of the cycle rather than
-          # opening a no-op PR against nothing.
+          # Identical render is a legitimate, common outcome (nothing
+          # changed since last run) — skip rather than open a no-op PR.
           if git diff --cached --quiet; then
             echo "no changes since main's current render — nothing to verify this run"
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -133,8 +102,7 @@ jobs:
           fi
           echo "changed=true" >> "$GITHUB_OUTPUT"
           # Synthetic committer identity — template-e2e is a disposable,
-          # per-run-discarded sandbox with no external audience, so
-          # verified-bot attribution isn't worth chasing here.
+          # audience-less sandbox; verified-bot attribution isn't worth chasing.
           git -c user.name="project-starter-template e2e" -c user.email="e2e@users.noreply.github.com" \
             commit -m "chore: e2e render $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git push origin "$BRANCH"
@@ -152,23 +120,15 @@ jobs:
           number=$(gh pr view "$BRANCH" -R "$E2E_REPO" --json number -q .number)
           echo "number=$number" >> "$GITHUB_OUTPUT"
 
-      # The one thing tier 1 (#41) structurally cannot exercise: pr-guards.yml
-      # and adr-guard.yml's job-level `if: draft == false` actually gating
-      # the three required checks, not a workflow-level skip that would read
-      # as passing to branch-protection instead (dotfiles' github.md edge
-      # case). `--required` matches template-e2e's ruleset exactly: single
-      # commit, conventional commit, adr guard (no extra_required_checks).
+      # The one thing #41 can't exercise: the draft-gate `if:` actually
+      # gating required checks live (dotfiles github.md's edge case).
       - name: Assert draft-gate stays quiet
         if: steps.push.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
-          # gh pr checks --watch treats zero checks reported as terminal, not
-          # pending — it doesn't wait for GitHub to even schedule the
-          # pr-guards.yml/adr-guard.yml runs in the first place (a few
-          # seconds of webhook/queueing lag right after PR creation).
-          # Confirmed live: querying immediately after `gh pr create` hit
-          # "no checks reported" outright. Poll by hand instead.
+          # gh pr checks --watch treats zero checks as terminal, not
+          # pending (confirmed live) — poll by hand instead.
           checks="[]"
           for _ in $(seq 1 24); do
             if out=$(gh pr checks "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --required --json name,bucket 2>/dev/null) \
@@ -203,12 +163,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
-          # A brief consistency lag between the Checks API (what the prior
-          # poll queried) and the ruleset engine's own merge-eligibility
-          # evaluation — confirmed live: merge was rejected immediately
-          # after a clean --fail-fast poll with "3 of 3 required status
-          # checks are queued", even though gh pr checks had just reported
-          # them all passing.
+          # Brief lag between the Checks API and the ruleset's own merge
+          # check — confirmed live to reject right after a clean poll.
           for _ in $(seq 1 6); do
             gh pr merge "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --rebase && exit 0
             sleep 5
@@ -216,9 +172,8 @@ jobs:
           echo "::error::rebase-merge still rejected after retrying — not just the ruleset-lag case" >&2
           exit 1
 
-      # delete_branch_on_merge (main.tf, repo-wide) should have swept the
-      # branch already; confirm it actually fired rather than trusting Tofu
-      # state.
+      # delete_branch_on_merge (main.tf) should already have swept this —
+      # confirm it fired rather than trusting Tofu state.
       - name: Assert branch deleted post-merge
         if: steps.push.outputs.changed == 'true'
         env:

@@ -1,17 +1,10 @@
 name: Bootstrap e2e sandbox main
 
-# One-time (or disaster-recovery) seeding of carpet-stain/template-e2e's
-# main branch. e2e-live.yml (#48) assumes main already exists and holds a
-# git-flow render -- this is what makes that assumption true in the first
-# place, before #48 can ever run for real.
+# One-time/disaster-recovery seeding of template-e2e's main — e2e-live.yml
+# (#48) assumes main already exists; this is what makes that true.
 
-# Same rename workaround git-flow/README.md's own bootstrap runbook
-# describes for any infra-provisioned repo: a direct push to main is
-# rejected by the ruleset (no required-check runs exist yet for a bare
-# push, GH013), so this pushes to a throwaway branch and renames it to
-# main instead -- a rename doesn't re-trigger that push check. Guarded to
-# refuse running if main already exists, so a stray re-dispatch can't
-# clobber real seeded content.
+# Rename workaround from git-flow/README.md's bootstrap runbook: direct
+# push to main is rejected by the ruleset (GH013, no required checks yet).
 on:
   workflow_dispatch:
 
@@ -19,9 +12,8 @@ jobs:
   bootstrap:
     name: seed main
     runs-on: ubuntu-latest
-    # id-token: write is the OIDC assertion this job needs to assume
-    # infra's project-starter-template-e2e-read role, job-scoped per
-    # infra's ADR-0010 step 5 (infra#147) — never workflow-level.
+    # OIDC assertion to assume infra's project-starter-template-e2e-read
+    # role, job-scoped per infra ADR-0010 step 5 (infra#147).
     permissions:
       id-token: write
     env:
@@ -30,9 +22,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
 
-      # copier's own post-gen task list (_tasks in copier.yml) runs
-      # `lefthook install` -- needs the binary present regardless of
-      # whether this workflow ever runs a lefthook check itself.
+      # copier's post-gen tasks run `lefthook install` — needs the binary
+      # present even though this job runs no lefthook check itself.
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
@@ -44,9 +35,8 @@ jobs:
           role-to-assume: ${{ vars.AWS_VEND_READ_ROLE_ARN }}
           aws-region: us-east-1
 
-      # Mirrors infra's vend-token.yml inline single-parameter read: masked
-      # before it ever lands in GITHUB_OUTPUT, multiline-safe delimiter
-      # (the value is a JSON blob, not guaranteed single-line-safe).
+      # Mirrors infra's vend-token.yml: masked before GITHUB_OUTPUT, with a
+      # multiline-safe delimiter since the value is a JSON blob.
       - name: Read vended token from SSM
         id: ssm
         run: |

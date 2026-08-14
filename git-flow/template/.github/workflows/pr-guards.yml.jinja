@@ -1,10 +1,7 @@
 name: PR guards
 
-# Enforces the one-commit-per-PR + rebase-merge workflow (AGENTS.md): a PR must
-# be exactly one commit whose subject is a Conventional Commit, so rebase-merge
-# lands a single clean, author-written commit on [[ protected_branch ]]; and it
-# must close an issue or declare why not (dotfiles#449 — see that job's own
-# comment).
+# Enforces one-commit-per-PR + rebase-merge (AGENTS.md): a single Conventional
+# Commit subject, and it closes an issue or declares why not (dotfiles#449).
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
@@ -22,9 +19,8 @@ jobs:
   single-commit:
     name: single commit
     runs-on: ubuntu-latest
-    # Draft PRs open early and take WIP pushes; a skipped-via-if job reads as
-    # passing to required-status-check branch protection, not failing, so
-    # this stays quiet until ready_for_review re-triggers it for real.
+    # Job-level if, not workflow-level: a workflow-level skip reads as passing to
+    # required-status-check branch protection. Stays quiet on drafts, fires at ready_for_review.
     if: github.event.pull_request.draft == false
     steps:
       - name: Assert the PR is exactly one commit
@@ -47,9 +43,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      # The commit that rebase-merges onto [[ protected_branch ]] is what git-cliff
-      # reads for the changelog, so its subject must be a Conventional Commit.
-      # Scope stays optional/unrestricted.
+      # git-cliff reads this commit's subject for the changelog, so it must be
+      # a Conventional Commit; scope stays optional/unrestricted.
       - name: Validate Conventional Commit subject
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
@@ -70,15 +65,11 @@ jobs:
     name: issue link
     runs-on: ubuntu-latest
     # release-prepare.yml's release/* PRs close no issue by design — exempted
-    # here in-guard rather than having that workflow inject a No-Issue body
-    # marker, so the whole contract stays in this one file (dotfiles#449).
+    # here in-guard so the whole contract stays in this one file (dotfiles#449).
     if: github.event.pull_request.draft == false && !startsWith(github.event.pull_request.head.ref, 'release/')
     steps:
-      # closingIssuesReferences is GitHub's own computed field (dotfiles#449) —
-      # not a body-text regex — so it reflects the link however it was made (a
-      # closing keyword or a manual Development-panel link), and a typo'd
-      # keyword that failed to actually link fails this check instead of
-      # passing it.
+      # GitHub's computed closingIssuesReferences (dotfiles#449), not a body
+      # regex, so a typo'd closing keyword that never actually linked fails this check.
       - name: Require a closing issue reference or a No-Issue marker
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -87,9 +78,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          # shellcheck disable=SC2016 # single-quoted: these are GraphQL's own
-          # $owner/$repo/$number variables, passed via -f/-F below — must not
-          # expand as bash variables.
+          # shellcheck disable=SC2016 # single-quoted GraphQL vars, not bash
+          # ($owner/$repo/$number passed via -f/-F below).
           count=$(gh api graphql -f query='
             query($owner: String!, $repo: String!, $number: Int!) {
               repository(owner: $owner, name: $repo) {
@@ -105,10 +95,8 @@ jobs:
             exit 0
           fi
 
-          # GNU grep's \s/\S here, not dotfiles#449's original POSIX space
-          # class: that class opens with two square brackets, which
-          # collides with this template's own jinja variable delimiter
-          # (copier.yml's _envops) and fails the render.
+          # GNU grep \s/\S here, not dotfiles#449's POSIX space class: that
+          # class's double square brackets collide with this template's jinja delimiter.
           if echo "$PR_BODY" | grep -qE '^No-Issue:\s*\S'; then
             echo "No-Issue marker present — ok."
             exit 0

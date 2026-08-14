@@ -45,13 +45,8 @@ pre-commit:
 
     - name: gitleaks
       tags: [base]
-      # No glob, no {staged_files}: gitleaks is content-based, not
-      # file-type-gated, and must cover .claude/agent-memory/** (the
-      # committed agent-memory store's secrets floor) — never copy the
-      # markdown jobs' exclude list here. Whole-tree dir scan rather than
-      # --staged so the same invocation is meaningful under CI's
-      # `lefthook run pre-commit --all-files`, where nothing is staged.
-      # Allowlist lives in .gitleaks.toml. Lineage: dotfiles#390.
+      # No glob/{staged_files}: gitleaks is content-based and must cover
+      # .claude/agent-memory/** — don't copy the markdown jobs' excludes. dotfiles#390
       run: gitleaks dir . --no-banner --redact
 
     - name: shfmt
@@ -62,10 +57,8 @@ pre-commit:
 
     - name: shellcheck
       tags: [base]
-      # No zsh exclude here (dotfiles' shellcheck excludes zsh for false
-      # positives) — this repo ships no zsh, so that exclude doesn't
-      # travel. .envrc/.envrc.local.example carry `# shellcheck shell=bash`
-      # directives since they have no shebang of their own.
+      # No zsh exclude (dotfiles has one for false positives) — this repo ships
+      # no zsh. .envrc* carry `# shellcheck shell=bash` since they lack a shebang.
       glob:
         - "scripts/*.sh"
         - ".envrc"
@@ -85,10 +78,8 @@ pre-commit:
       tags: [base]
       glob:
         - "justfile"
-      # --justfile (not a positional, which `just` reads as a recipe name)
-      # takes exactly one path. --fmt --check validates syntax (it must
-      # parse to format) and canonical formatting in one pass. Lineage:
-      # dotfiles' justfile-format job.
+      # --justfile, not positional (`just` reads a positional as a recipe name).
+      # --fmt --check validates syntax + canonical formatting in one pass.
       run: just --fmt --check --justfile {staged_files}
 
     - name: editorconfig-checker
@@ -99,36 +90,24 @@ pre-commit:
       exclude:
         - "CHANGELOG.md"
         - ".claude/agent-memory/**"
-      # The catch-all for files no dedicated formatter covers. Indent checks
-      # are off (--disable-indentation): indentation stays each
-      # per-language formatter's job (shfmt/prettier/yamlfmt), which
-      # understands its own syntax — see dotfiles' inline comment for the
-      # full why. Excludes match the markdown jobs' (CHANGELOG.md is
-      # git-cliff generated once release automation is used;
-      # .claude/agent-memory/** is the committed agent-memory store) —
-      # dotfiles' theme/zellij vendored-content excludes don't travel here.
+      # --disable-indentation: indentation stays each per-language formatter's
+      # job. Excludes match the markdown jobs' (CHANGELOG.md is git-cliff generated).
       run: editorconfig-checker --disable-indentation {staged_files}
 
     - name: envrc-local-example-sync
       tags: [base]
       run: scripts/check-envrc-local-example.sh
 
-    # Raw jinja syntax check on the copier templates this repo hosts — cheap,
-    # catches broken jinja before render. Not tagged `base`: this job is
-    # specific to this repo hosting the templates, not part of what a
-    # generated repo's own `just lint --tag base` runs. Filtering (extension,
-    # two known j2lint-false-positive files) lives in the script; see its
-    # header for why.
+    # Not tagged `base`: specific to this repo hosting the templates, not
+    # part of a generated repo's own `just lint --tag base`.
     - name: j2lint
       glob:
         - "git-flow/template/**"
         - "python/template/**"
       run: scripts/lint-templates.sh --jinja {staged_files}
 
-    # Unit tests for the vendored advisory-reviewer script (#60) — this
-    # repo's own coverage of code it ships, same reasoning as j2lint above:
-    # specific to hosting the payload, not part of a generated repo's own
-    # `just lint --tag base`.
+    # Unit tests for the vendored advisory-reviewer script (#60) — specific
+    # to hosting the payload, not part of a generated repo's own lint.
     - name: pr-review-test
       glob:
         - "git-flow/template/scripts/pr-review/**"
@@ -140,9 +119,8 @@ pre-push:
       tags: [base]
       run: scripts/check-envrc-local-example.sh
 
-    # Render-then-verify — heavier (a full copier render + rendered
-    # lefthook run per template), so pre-push rather than pre-commit; CI
-    # runs the same `just lint-templates` entry point (lint-templates.yml).
+    # Heavier (full copier render + rendered lefthook run per template), so
+    # pre-push not pre-commit; CI runs the same `just lint-templates` entry point.
     - name: lint-templates
       glob:
         - "git-flow/**"
