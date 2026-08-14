@@ -96,8 +96,11 @@ it — `copier copy`/`py-new` onto an empty dir has no collisions.
   baseline the lefthook jobs and CI enforce
 - `README.md` — a starter front door filled from the copier answers, pointing
   at `docs/adr/` and `just lint` rather than restating them
-- `.envrc` + `.envrc.local.example` — aliases `GH_TOKEN` to `GITHUB_TOKEN`
-  for git-cliff's GitHub API lookups
+- `.envrc` + `.envrc.local.example` — resolves `GH_TOKEN` from the vended
+  token (routine credential) with a PAT escape hatch and a fail-closed
+  sentinel, then aliases it to `GITHUB_TOKEN` for git-cliff's GitHub API
+  lookups; see dotfiles' AGENTS.md Credentials section and infra ADR-0010
+  for the design
 - `.github/dependabot.yml` — weekly `github-actions` ecosystem updates
 
 ## What it deliberately doesn't produce
