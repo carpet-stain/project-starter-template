@@ -78,6 +78,35 @@ echo "==> j2lint (raw jinja syntax)"
 mapfile -d '' all_jinja < <(find git-flow/template python/template -name "*.jinja" -print0)
 j2lint_pass "${all_jinja[@]}"
 
+# check_payload_action_pins -> actions pinned in both the payload and this
+# repo's own workflows must agree on the major — offline, no "latest" (#89).
+check_payload_action_pins() {
+  local entry action major files
+  declare -A own_pin
+  while IFS= read -r entry; do
+    action=${entry%@v*}
+    major=${entry##*@v}
+    own_pin[$action]=${major%%.*}
+  done < <(grep -rhoE 'uses:[[:space:]]*[^[:space:]]+@v[0-9.]+' .github/workflows | sed -E 's/uses:[[:space:]]*//' | sort -u)
+  # Unique (action, major) pairs, not one entry per action: a payload mixing
+  # two majors of the same action must surface both, not last-wins one.
+  while read -r action major; do
+    # setup-uv excluded: lint-templates.yml runs it as harness tooling and
+    # lags latest, while the payload tracks latest major (#88).
+    [ "$action" = "astral-sh/setup-uv" ] && continue
+    [ -n "${own_pin[$action]:-}" ] || continue
+    if [ "$major" != "${own_pin[$action]}" ]; then
+      files=$(grep -rlE "uses:[[:space:]]*$action@v$major" git-flow/template python/template | paste -sd ' ' -)
+      echo "payload pins $action@v$major but this repo's own workflows pin @v${own_pin[$action]}: $files" >&2
+      fail=1
+    fi
+  done < <(grep -rhoE 'uses:[[:space:]]*[^[:space:]]+@v[0-9.]+' git-flow/template python/template |
+    sed -E 's/uses:[[:space:]]*//; s/@v([0-9]+)[0-9.]*/ \1/' | sort -u)
+}
+
+echo "==> payload action pins vs own workflows"
+check_payload_action_pins
+
 # Explicit list, not `find template -name '*.jinja'`: {% if %}-wrapped
 # filenames need that conditional evaluated to know their rendered path.
 GIT_FLOW_ALWAYS_JINJA_FILES=(
