@@ -18,7 +18,7 @@ jobs:
     steps:
       # Explicit ref: [[ protected_branch ]] — pull_request checkouts default to a
       # synthetic merge-preview ref, not real post-merge history, and we're about to tag it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: [[ protected_branch ]]
           fetch-depth: 0

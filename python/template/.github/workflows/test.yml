@@ -22,9 +22,9 @@ jobs:
     # required-status-check branch protection, same gate as pr-guards.yml.
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
       - run: uv sync --locked

@@ -26,7 +26,7 @@ jobs:
     steps:
       # Step-level if, not job-level: a required check must always report a
       # conclusion, or a skipped run sits pending forever and blocks merge.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: contains(github.event.pull_request.labels.*.name, 'architecture')
         with:
           ref: ${{ github.event.pull_request.head.sha }}
