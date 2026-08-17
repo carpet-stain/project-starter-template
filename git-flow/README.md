@@ -62,6 +62,9 @@ it — `copier copy`/`py-new` onto an empty dir has no collisions.
   review). Inert until an `OPENAI_API_KEY` repo secret exists; skips cleanly
   (green) without it — see `scripts/pr-review/run.mjs` and the workflow's own
   comments.
+- `.github/workflows/epic-complete.yml` — closes an epic the moment its last
+  same-repo sub-issue closes, behind a conservative cross-repo guard
+  (dotfiles ADR-0047). Gates on the `epic` label from the canonical taxonomy
 - `docs/adr/` scaffolding — `README.md` (what an ADR is, when to write one),
   `templates/template.md` (the Nygard template), `scripts/new-adr.sh` (stamps
   the next-numbered ADR from it — run via `just adr`, no adr-tools dependency),
