@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Render-then-verify for the copier templates (git-flow base, git-flow+python
-# overlay) hosted here — see dotfiles#310 (original) and
+# Render-then-verify for the copier templates (git-flow base, git-flow plus
+# python/typescript overlay) hosted here — see dotfiles#310 (original) and
 # project-starter-template#41 (this design). The .jinja/copier syntax breaks
 # yaml/toml/py parsers directly, so this validates the *rendered output*.
 #
@@ -75,7 +75,7 @@ render() {
 }
 
 echo "==> j2lint (raw jinja syntax)"
-mapfile -d '' all_jinja < <(find git-flow/template python/template -name "*.jinja" -print0)
+mapfile -d '' all_jinja < <(find git-flow/template python/template typescript/template -name "*.jinja" -print0)
 j2lint_pass "${all_jinja[@]}"
 
 # check_payload_action_pins -> actions pinned in both the payload and this
@@ -96,11 +96,11 @@ check_payload_action_pins() {
     [ "$action" = "astral-sh/setup-uv" ] && continue
     [ -n "${own_pin[$action]:-}" ] || continue
     if [ "$major" != "${own_pin[$action]}" ]; then
-      files=$(grep -rlE "uses:[[:space:]]*$action@v$major" git-flow/template python/template | paste -sd ' ' -)
+      files=$(grep -rlE "uses:[[:space:]]*$action@v$major" git-flow/template python/template typescript/template | paste -sd ' ' -)
       echo "payload pins $action@v$major but this repo's own workflows pin @v${own_pin[$action]}: $files" >&2
       fail=1
     fi
-  done < <(grep -rhoE 'uses:[[:space:]]*[^[:space:]]+@v[0-9.]+' git-flow/template python/template |
+  done < <(grep -rhoE 'uses:[[:space:]]*[^[:space:]]+@v[0-9.]+' git-flow/template python/template typescript/template |
     sed -E 's/uses:[[:space:]]*//; s/@v([0-9]+)[0-9.]*/ \1/' | sort -u)
 }
 
@@ -183,6 +183,19 @@ assert_toml_valid() {
   (cd "$dir" && taplo lint "${toml_files[@]}") || fail=1
 }
 
+# assert_json_valid <dir> <file...> -> structural parse only, the JSON
+# sibling of assert_toml_valid (tsconfig.json is deliberately comment-free).
+assert_json_valid() {
+  local dir=$1 f
+  shift
+  for f in "$@"; do
+    node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$dir/$f" || {
+      echo "invalid JSON: $dir/$f" >&2
+      fail=1
+    }
+  done
+}
+
 # run_rendered_hook <dir> <pre-commit|pre-push> -> runs the rendered repo's
 # own lefthook slice unscoped, so base + language-overlay jobs both run.
 run_rendered_hook() {
@@ -241,6 +254,31 @@ assert_lefthook_installed "$overlay_dir"
 assert_toml_valid "$overlay_dir"
 run_rendered_hook "$overlay_dir" pre-commit
 run_rendered_hook "$overlay_dir" pre-push
+
+echo "==> rendering + verifying git-flow + typescript overlay"
+ts_dir=$(render git-flow -d github_owner=fixture-owner -d github_repo=fixture-repo)
+uvx copier copy --trust --defaults --overwrite \
+  -d project_name="Fixture Project" \
+  -d description="A fixture project for template lint validation." \
+  -d author_name="Fixture Author" \
+  -d author_email="fixture@example.com" \
+  typescript "$ts_dir" >&2
+assert_file_set "$ts_dir" true
+assert_no_unresolved "$ts_dir" '[[' \
+  .github/workflows/adr-guard.yml .github/workflows/lint.yml .github/workflows/pr-guards.yml \
+  cliff.toml justfile.release .github/workflows/release-prepare.yml .github/workflows/release-publish.yml
+assert_no_unresolved "$ts_dir" '{{' README.md package.json
+assert_json_valid "$ts_dir" package.json tsconfig.json biome.json
+assert_lefthook_installed "$ts_dir"
+assert_toml_valid "$ts_dir"
+# just parses all three justfiles here — catches an overlay verb colliding
+# with a base one (just hard-errors on recipe redefinition).
+(cd "$ts_dir" && just --list >/dev/null) || fail=1
+run_rendered_hook "$ts_dir" pre-commit
+run_rendered_hook "$ts_dir" pre-push
+# Inline typecheck + test; biome is a lang-tagged lefthook job already run above.
+(cd "$ts_dir" && pnpm exec tsc --noEmit) || fail=1
+(cd "$ts_dir" && pnpm run test) || fail=1
 
 if [ "$fail" -ne 0 ]; then
   echo "lint-templates: FAILED" >&2

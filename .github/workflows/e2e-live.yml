@@ -7,6 +7,14 @@ name: Live e2e (template-e2e)
 # infra's vended cross-repo token instead (infra ADR-0010, infra#147).
 on:
   workflow_dispatch:
+    inputs:
+      overlay:
+        description: >-
+          Language overlay to layer over the base render (the sandbox becomes
+          that flavor until the next run — rsync --delete swaps it back).
+        type: choice
+        options: [none, typescript]
+        default: none
 
 concurrency:
   group: e2e-live
@@ -73,11 +81,29 @@ jobs:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: scripts/e2e-cleanup-stale.sh
 
+      # Single pnpm-version authority, same as lint-templates.yml: the action
+      # reads the typescript overlay's own `packageManager` pin (valid JSON).
+      - uses: pnpm/action-setup@v4
+        if: inputs.overlay == 'typescript'
+        with:
+          package_json_file: typescript/template/package.json.jinja
+
       - name: Render git-flow payload
         run: |
           uvx copier copy --trust --defaults \
             -d github_owner=carpet-stain -d github_repo=template-e2e \
             git-flow "$RUNNER_TEMP/render"
+
+      # Post-gen tasks run for real (pnpm install → pnpm-lock.yaml): the
+      # sandbox's own test.yml installs with --frozen-lockfile.
+      - name: Layer typescript overlay
+        if: inputs.overlay == 'typescript'
+        run: |
+          uvx copier copy --trust --defaults --overwrite \
+            -d project_name=template-e2e -d description="Live e2e sandbox render." \
+            -d author_name="project-starter-template e2e" \
+            -d author_email="e2e@users.noreply.github.com" \
+            typescript "$RUNNER_TEMP/render"
 
       # Mirrors the real consumer re-render flow (git-flow/README.md's
       # runbook); rsync --delete removes files the render no longer produces.
@@ -91,7 +117,7 @@ jobs:
           git clone --branch main "https://x-access-token:${GH_TOKEN}@github.com/${E2E_REPO}.git" "$RUNNER_TEMP/e2e"
           cd "$RUNNER_TEMP/e2e"
           git checkout -b "$BRANCH"
-          rsync -a --delete --exclude .git "$RUNNER_TEMP/render/" ./
+          rsync -a --delete --exclude .git --exclude node_modules "$RUNNER_TEMP/render/" ./
           git add -A
           # Identical render is a legitimate, common outcome (nothing
           # changed since last run) — skip rather than open a no-op PR.
@@ -157,6 +183,28 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: timeout 600 gh pr checks "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" --watch --required --fail-fast
+
+      # The overlay's test.yml isn't a required check in the sandbox ruleset —
+      # await it explicitly so an overlay run actually proves its CI slice.
+      - name: Poll for green overlay test check
+        if: steps.push.outputs.changed == 'true' && inputs.overlay != 'none'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          for _ in $(seq 1 60); do
+            bucket=$(gh pr checks "${{ steps.pr.outputs.number }}" -R "$E2E_REPO" \
+              --json name,bucket -q '.[] | select(.name == "test") | .bucket')
+            case "$bucket" in
+              pass) exit 0 ;;
+              fail | cancel)
+                echo "::error::overlay test check concluded '$bucket'" >&2
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "::error::overlay test check not green after 600s (last bucket: '${bucket:-absent}')" >&2
+          exit 1
 
       - name: Rebase-merge
         if: steps.push.outputs.changed == 'true'

@@ -1,8 +1,8 @@
 # Adding a language overlay
 
-`python/` is the only overlay that exists today. This is the contract a
-second one (Go, Node, whatever's next) must satisfy — distilled here instead
-of left to reverse-engineering from `python/`'s files and scattered comments.
+Two overlays exist today: `python/` and `typescript/`. This is the contract
+the next one (Go, whatever's after) must satisfy — distilled here instead of
+left to reverse-engineering from their files and scattered comments.
 
 ## File ownership — disjoint by design
 
@@ -10,7 +10,11 @@ An overlay and the git-flow base each own a fixed, non-overlapping set of
 files (ADR-0020 in the template's source repo). An overlay ships:
 
 - `justfile.lang` — its own verbs, picked up by the base justfile's
-  `import? 'justfile.lang'`. Never add a base verb (`lint`, `adr`) here.
+  `import? 'justfile.lang'`. Never add a base verb (`lint`, `adr`) here — nor
+  reuse a base recipe _name_ (`format` is base-owned for markdown): just
+  hard-errors on recipe redefinition across imports, so the collision breaks
+  every `just` invocation in the rendered repo. The typescript overlay names
+  its formatter verb `fmt` for exactly this reason.
 - `lefthook-lang.yml` — its own lefthook jobs, overwriting the base's empty
   stub. `lefthook.yml`'s `extends` picks it up either way. Never add a base
   job (`actionlint`, `markdownlint-cli2`, ...) here.
@@ -35,9 +39,11 @@ not something to design around:
   git has no include mechanism for tracked ignores. A new overlay's
   `.gitignore` must do the same: superset the base's entries, don't just
   replace them.
-- **The seeded `README.md`** — both versions are pointer-pure and
-  structurally identical (front door text pointing at `AGENTS.md` and
-  `docs/adr/`, nothing overlay-specific), so the overwrite loses nothing.
+- **The seeded `README.md`** — the base's copy is pointer-pure front door
+  text (pointing at `AGENTS.md` and `docs/adr/`), and the overlay's keeps
+  that shape plus at most a few load-bearing bootstrap notes (the
+  typescript one: `corepack enable`, commit the lockfile), so the overwrite
+  loses nothing.
 
 ## `copier.yml` conventions
 
@@ -72,11 +78,12 @@ A generated repo is the git-flow base plus **at most one** language overlay
 overlay assuming another overlay might be layered alongside it; that
 combination isn't supported.
 
-## Worked example
+## Worked examples
 
-`python/` is the reference: `python/copier.yml` (questions, the `_tasks`
-array form above), `python/template/justfile.lang`,
+`python/` is the original reference: `python/copier.yml` (questions, the
+`_tasks` array form above), `python/template/justfile.lang`,
 `python/template/lefthook-lang.yml`, `python/template/.github/workflows/test.yml`,
-and `python/template/.gitignore`. `python/README.md` documents its own
-questions and output; this guide covers the contract every overlay shares,
-not `python/`'s specifics — read both together when starting a new one.
+and `python/template/.gitignore`. `typescript/` is the second instance of the
+same contract (Node + pnpm toolchain — ADR-0003). Each overlay's own README
+documents its questions and output; this guide covers the contract every
+overlay shares — read them together when starting a new one.

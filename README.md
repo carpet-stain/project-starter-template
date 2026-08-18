@@ -2,7 +2,7 @@
 
 Copier toolkit for scaffolding governed GitHub repos: a language-agnostic
 git-flow governance base, plus language overlays layered on top (currently
-`python/`). This repo _is_ the base — it's bootstrapped from its own
+`python/` and `typescript/`). This repo _is_ the base — it's bootstrapped from its own
 `git-flow` template (dogfood: the repo that ships the base is itself
 governed by it).
 
@@ -32,7 +32,11 @@ uvx copier copy project-starter-template/git-flow <new-project-dir>
 uvx copier copy project-starter-template/python <new-project-dir>
 ```
 
-Each template's own README (`git-flow/README.md`, `python/README.md`)
+(`scripts/py-new.sh` and `scripts/ts-new.sh` wrap the two passes — swap
+`python` for `typescript` above for a TypeScript project.)
+
+Each template's own README (`git-flow/README.md`, `python/README.md`,
+`typescript/README.md`)
 covers its questions, what it produces, and the full bootstrap runbook
 (labels, branch protection, the `RELEASE_PAT` secret) — this file is a
 pointer, not a restatement. A generated repo carries no
@@ -52,8 +56,9 @@ repo for the governance side of the story.
 
 `just lint` runs this repo's own source checks; `just lint-templates` renders
 the copier templates themselves and runs each render's own lefthook checks
-against the output (`scripts/lint-templates.sh` has the strategy) — CI runs
-both.
+against the output — CI runs both. [`TESTING.md`](TESTING.md) maps the full
+testing ladder (source checks → render-verify → rendered-repo smoke → `act`
+→ retrofit → live e2e) and when to climb it.
 
 ## Contributing
 
