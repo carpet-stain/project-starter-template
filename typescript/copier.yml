@@ -1,0 +1,30 @@
+_subdirectory: template
+
+project_name:
+  type: str
+  help: Human-readable project name (e.g. "Golden Ratio")
+
+package_name:
+  type: str
+  help: npm-safe package name (lowercase, hyphens)
+  default: "{{ project_name.lower().replace('_', '-').replace(' ', '-') }}"
+
+description:
+  type: str
+  help: One-line project description
+  default: ""
+
+author_name:
+  type: str
+  help: Author name for package.json
+
+author_email:
+  type: str
+  help: Author email for package.json
+
+_tasks:
+  # Assumes pnpm on PATH (`corepack enable` — see README). Corepack then
+  # resolves the exact version from package.json's `packageManager` field.
+  - pnpm install
+  - git init -q
+  - lefthook install

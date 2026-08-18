@@ -6,30 +6,38 @@
 # unrelated history. git's 3-way merge is the additive semantics wanted:
 # absent file -> created, existing file -> add/add conflict with both contents
 # under markers for the operator to resolve, nothing ever deleted. Greenfield
-# repos don't need this — use py-new / `copier copy` there.
+# repos don't need this — use py-new.sh / ts-new.sh / `copier copy` there.
 #
 # Answers are derived from the repo itself (origin URL, default branch, git
 # user, pyproject description) and everything else takes template defaults —
 # the result is ordinary conflict-resolvable text, so wrong guesses are fixed
 # in the same resolution pass, not re-prompted.
 #
-# usage: scripts/retrofit-governance.sh [--python] [dir]
-#   --python  also layer the python overlay (ci test job, ruff/pyright hooks)
-#   dir       target repo (default: .)
+# usage: scripts/retrofit-governance.sh [--python|--typescript] [dir]
+#   --python      also layer the python overlay (ci test job, ruff/pyright hooks)
+#   --typescript  also layer the typescript overlay (ci test job, biome/tsc hooks)
+#   dir           target repo (default: .)
 set -euo pipefail
 
 PYTHON=false
+TYPESCRIPT=false
 TARGET="."
 for arg in "$@"; do
   case "$arg" in
     --python) PYTHON=true ;;
+    --typescript) TYPESCRIPT=true ;;
     -*)
-      echo "usage: $0 [--python] [dir]" >&2
+      echo "usage: $0 [--python|--typescript] [dir]" >&2
       exit 1
       ;;
     *) TARGET="$arg" ;;
   esac
 done
+
+if $PYTHON && $TYPESCRIPT; then
+  echo "error: at most one language overlay (ADR-0020) — pass --python or --typescript, not both." >&2
+  exit 1
+fi
 
 script_dir=$(cd "$(dirname "$(realpath "$0")")" && pwd)
 template_repo_dir=$(dirname "$script_dir")
@@ -73,6 +81,15 @@ if $PYTHON; then
     -d project_name="$repo" -d description="$desc" \
     -d author_name="$(git config user.name)" -d author_email="$(git config user.email)" \
     "$template_repo_dir/python" "$T"
+fi
+
+if $TYPESCRIPT; then
+  desc=""
+  [[ -f package.json ]] && desc=$(sed -n 's/.*"description": *"\([^"]*\)".*/\1/p' package.json | head -1)
+  uvx copier copy --trust --skip-tasks --defaults --overwrite \
+    -d project_name="$repo" -d description="$desc" \
+    -d author_name="$(git config user.name)" -d author_email="$(git config user.email)" \
+    "$template_repo_dir/typescript" "$T"
 fi
 
 git -C "$T" init -q -b _retrofit-src

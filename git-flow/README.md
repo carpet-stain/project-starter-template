@@ -5,9 +5,9 @@ git/GitHub workflow (#136) — PR guards, optional release automation, and the
 scoped-token credential pattern. Decisions and rationale live on #136 and its
 spike #137; this is the mechanism.
 
-Language-agnostic base under a language overlay (e.g. the Python starter at
-`../python`): apply this template first, then layer a language template on
-top.
+Language-agnostic base under a language overlay (the Python starter at
+`../python`, the TypeScript starter at `../typescript`): apply this template
+first, then layer a language template on top.
 
 The templates write **no `.copier-answers` file**, so there is no `copier
 update` path — a repo is scaffolded once and evolved directly from then on
@@ -28,7 +28,7 @@ include release automation, then a post-generation task runs `git init` and
 ## Retrofit an existing, never-templated repo
 
 ```sh
-project-starter-template/scripts/retrofit-governance.sh [--python] <repo-dir>
+project-starter-template/scripts/retrofit-governance.sh [--python|--typescript] <repo-dir>
 ```
 
 `copier copy` can't do this safely — `--overwrite` replaces colliding files
@@ -38,10 +38,11 @@ it in as an unrelated history, which is the additive semantics wanted: an
 absent file is created, an existing one becomes an `add/add` conflict with both
 contents kept under markers for the operator to resolve, and nothing is ever
 deleted. Answers are derived from the repo (origin URL, default branch, git
-user); `--python` layers the Python overlay too. Re-run it later to pull a
-wholesale template refresh (shared files re-conflict for you to resolve);
-smaller changes are usually quicker to hand-apply. Greenfield repos don't need
-it — `copier copy`/`py-new` onto an empty dir has no collisions.
+user); `--python`/`--typescript` layers that language overlay too (at most
+one — ADR-0020). Re-run it later to pull a wholesale template refresh (shared
+files re-conflict for you to resolve); smaller changes are usually quicker to
+hand-apply. Greenfield repos don't need it — `copier copy`/`py-new.sh`/
+`ts-new.sh` onto an empty dir has no collisions.
 
 ## What it produces
 

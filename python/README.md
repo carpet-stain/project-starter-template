@@ -5,7 +5,7 @@ project (#129). Decisions and rationale live on the issue; this is the
 mechanism.
 
 This is a **language overlay on the git-flow governance base** (`../git-flow`),
-not a standalone template — `py-new` applies git-flow first, then layers this on
+not a standalone template — `py-new.sh` applies git-flow first, then layers this on
 top. The layers own disjoint files (ADR-0020 in the template's source repo): the
 overlay ships its own CI workflow (`test.yml`), its lefthook jobs
 (`lefthook-lang.yml`, overwriting the base's empty stub), and its just verbs
@@ -17,10 +17,10 @@ scaffolding, the credential pattern — comes through untouched; only
 ## Use
 
 ```sh
-py-new <new-project-dir>
+project-starter-template/scripts/py-new.sh <new-project-dir>
 ```
 
-`py-new` (see `scripts/py-new.sh`) applies two copier templates with `--trust`:
+`py-new.sh` applies two copier templates with `--trust`:
 the git-flow base, then this overlay. `--trust` isn't optional: it's what lets
 the post-generation tasks run at all (pins the interpreter via `uv python pin`,
 syncs the lock via `uv sync`, `git init`s, installs the git hooks via

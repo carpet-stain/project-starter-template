@@ -104,6 +104,7 @@ pre-commit:
       glob:
         - "git-flow/template/**"
         - "python/template/**"
+        - "typescript/template/**"
       run: scripts/lint-templates.sh --jinja {staged_files}
 
     # Unit tests for the vendored advisory-reviewer script (#60) — specific
@@ -125,6 +126,7 @@ pre-push:
       glob:
         - "git-flow/**"
         - "python/**"
+        - "typescript/**"
       run: just lint-templates
 
     - name: governance-propagation
