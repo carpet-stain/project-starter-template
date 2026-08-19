@@ -1,0 +1,14 @@
+name: Epic complete
+
+# Thin caller — the body lives in reusable-epic-complete.yml (ADR-0004).
+# New to this repo with #104: it has epics now (#95, #104) and lacked this.
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  epic:
+    uses: ./.github/workflows/reusable-epic-complete.yml
