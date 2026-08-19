@@ -1,0 +1,69 @@
+name: Reusable lint
+
+# Fleet single copy of base lint (`base` lefthook tag; overlays own theirs —
+# dotfiles ADR-0020). Job `name:`s are ruleset contract (ADR-0004, #104).
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    # Draft gate lives HERE, never on the caller `uses:` job — a skipped
+    # caller never expands this workflow and its required check hangs (#104).
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v7
+
+      # Portable toolchain, no Homebrew — each linter installed its native
+      # way; `just lint` still drives the shared lefthook so CI/local match.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      - name: Install Node lint tools
+        run: npm install --global lefthook markdownlint-cli2 prettier
+
+      - uses: extractions/setup-just@v4
+
+      - name: Install actionlint and yamlfmt
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          YAMLFMT_VERSION: "0.21.0"
+        run: |
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin actionlint
+          curl -fsSL "https://github.com/google/yamlfmt/releases/download/v${YAMLFMT_VERSION}/yamlfmt_${YAMLFMT_VERSION}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin yamlfmt
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+
+      - name: Install shfmt and shellcheck
+        env:
+          SHFMT_VERSION: "3.13.1"
+          SHELLCHECK_VERSION: "0.11.0"
+        run: |
+          curl -fsSL "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64" \
+            -o /tmp/shfmt && sudo install -m 755 /tmp/shfmt /usr/local/bin/shfmt
+          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | sudo tar -xJ -C /usr/local/bin --strip-components=1 "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
+
+      - name: Install editorconfig-checker
+        env:
+          EDITORCONFIG_CHECKER_VERSION: "3.8.0"
+        run: |
+          curl -fsSL "https://github.com/editorconfig-checker/editorconfig-checker/releases/download/v${EDITORCONFIG_CHECKER_VERSION}/ec-linux-amd64.tar.gz" \
+            | tar -xz -O bin/ec-linux-amd64 | sudo tee /usr/local/bin/editorconfig-checker > /dev/null
+          sudo chmod +x /usr/local/bin/editorconfig-checker
+
+      # `just lint` wraps the same `lefthook run pre-commit --all-files`
+      # contributors run, scoped here to the base tag (full union runs locally).
+      - name: Run lint/format checks
+        run: just lint --tag base --no-tty
