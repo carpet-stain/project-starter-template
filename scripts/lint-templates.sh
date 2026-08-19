@@ -269,6 +269,14 @@ assert_no_unresolved "$ts_dir" '[[' \
   cliff.toml justfile.release .github/workflows/release-prepare.yml .github/workflows/release-publish.yml
 assert_no_unresolved "$ts_dir" '{{' README.md package.json
 assert_json_valid "$ts_dir" package.json tsconfig.json biome.json
+# Files test.yml reads at runtime but nothing below executes — a dotfile a
+# contributor's global gitignore swallowed shipped as a missing file once (#100).
+for f in .node-version pnpm-lock.yaml; do
+  [ -f "$ts_dir/$f" ] || {
+    echo "typescript render is missing $f" >&2
+    fail=1
+  }
+done
 assert_lefthook_installed "$ts_dir"
 assert_toml_valid "$ts_dir"
 # just parses all three justfiles here — catches an overlay verb colliding
