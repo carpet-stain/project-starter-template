@@ -4,6 +4,14 @@ name: Reusable PR guards
 # Job `name:`s are ruleset contract — a rename breaks every consumer.
 on:
   workflow_call:
+    inputs:
+      issue_link_exempt_head_prefixes:
+        description: >-
+          Space-separated head-ref prefixes whose PRs skip the issue-link
+          guard (they close no issue by design, e.g. release automation).
+        type: string
+        required: false
+        default: "release/"
 
 permissions:
   contents: read
@@ -58,9 +66,7 @@ jobs:
   issue-link:
     name: issue link
     runs-on: ubuntu-latest
-    # release/* PRs close no issue by design — exempted here in-guard so
-    # the whole contract stays in this one file (dotfiles#449).
-    if: github.event.pull_request.draft == false && !startsWith(github.event.pull_request.head.ref, 'release/')
+    if: github.event.pull_request.draft == false
     steps:
       # closingIssuesReferences is GitHub's own computed field (dotfiles#449),
       # not a body-text regex — a typo'd closing keyword fails this check too.
@@ -71,7 +77,20 @@ jobs:
           REPO: ${{ github.event.repository.name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          EXEMPT_PREFIXES: ${{ inputs.issue_link_exempt_head_prefixes }}
         run: |
+          # Exempt prefixes close no issue by design (release automation,
+          # sync bots) — in-guard so the whole contract stays in this file.
+          for p in $EXEMPT_PREFIXES; do
+            case "$HEAD_REF" in
+              "$p"*)
+                echo "head ref '$HEAD_REF' matches exempt prefix '$p' — skipping."
+                exit 0
+                ;;
+            esac
+          done
+
           # shellcheck disable=SC2016 # single-quoted GraphQL vars, not bash
           # ($owner/$repo/$number passed via -f/-F below).
           count=$(gh api graphql -f query='
