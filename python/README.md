@@ -46,5 +46,5 @@ template's source repo).
 - `.github/workflows/test.yml`: `uv sync --locked`, the `lang` lefthook slice
   (`uvx lefthook run pre-commit --all-files --tag lang` — no Homebrew), then
   pyright + pytest. The base's `lint.yml` runs the base slice separately
-- `justfile.lang`: `test`, `typecheck`, `format` — the base's `import?` picks
+- `justfile.lang`: `test`, `typecheck`, `fmt` — the base's `import?` picks
   it up next to `lint`/`adr`

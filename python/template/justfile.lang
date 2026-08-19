@@ -9,6 +9,7 @@ test *args:
 typecheck:
     uv run pyright
 
+# The base's `format` verb owns markdown; a duplicate recipe name hard-errors.
 # Format Python sources with ruff.
-format *args:
+fmt *args:
     uv run ruff format {{ args }}
