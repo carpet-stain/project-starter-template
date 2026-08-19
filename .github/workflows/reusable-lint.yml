@@ -1,7 +1,7 @@
 name: Reusable lint
 
-# Fleet single copy of base lint (`base` lefthook tag; overlays own theirs —
-# dotfiles ADR-0020). Job `name:`s are ruleset contract (ADR-0004, #104).
+# Fleet single copy of base lint (`base` tag; overlays own theirs — dotfiles
+# ADR-0020). Contract = job `name:`s + inputs: breaking cuts v2, else v1 (#110).
 on:
   workflow_call:
 

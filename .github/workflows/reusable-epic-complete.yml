@@ -1,7 +1,7 @@
 name: Reusable epic complete
 
-# Fleet single copy of epic-complete (ADR-0004, #104); caller triggers on
-# `issues: closed`. Guard rationale: dotfiles#592/#610, dotfiles ADR-0047.
+# Fleet single copy (ADR-0004); caller triggers on `issues: closed`; guard
+# rationale: dotfiles#592/#610 + ADR-0047. Breaking contract cuts v2 (#110).
 on:
   workflow_call:
 

@@ -1,7 +1,7 @@
 name: PR guards
 
 # Thin caller — the guard bodies live in the template source repo's
-# reusable-pr-guards.yml (its ADR-0004); Dependabot bumps the SHA pin.
+# reusable-pr-guards.yml — pinned to its moving major tag (its ADR-0004/#110).
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
@@ -19,4 +19,4 @@ jobs:
   # Job id `guards` is ruleset contract: required contexts are
   # `guards / single commit` etc. — renaming this id breaks the ruleset.
   guards:
-    uses: carpet-stain/project-starter-template/.github/workflows/reusable-pr-guards.yml@504d81a0dca5b0e67d7756610cf22b49b2be7ddf # main
+    uses: carpet-stain/project-starter-template/.github/workflows/reusable-pr-guards.yml@v1

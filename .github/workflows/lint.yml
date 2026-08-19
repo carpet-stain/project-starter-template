@@ -1,7 +1,7 @@
 name: Lint
 
 # Thin caller — the lint body lives in reusable-lint.yml (ADR-0004).
-# Same-repo local `uses:` runs this commit's copy; consumers pin a SHA.
+# Same-repo local `uses:` runs this commit's copy; consumers pin `@v1` (#110).
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]

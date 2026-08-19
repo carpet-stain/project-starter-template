@@ -1,7 +1,7 @@
 name: Reusable PR guards
 
-# Fleet single copy of pr-guards; thin callers per repo (ADR-0004, #104).
-# Job `name:`s are ruleset contract — a rename breaks every consumer.
+# Fleet single copy; thin callers pin the moving major (ADR-0004, #104, #110).
+# Caller contract = job `name:`s + inputs — breaking cuts v2, compatible rides v1.
 on:
   workflow_call:
     inputs:
