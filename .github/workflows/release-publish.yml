@@ -1,0 +1,71 @@
+name: Publish release
+
+# Triggers on PR close + gates on head.ref (immutable structural metadata),
+# not a push-time commit-message parse — that would duplicate pr-guards.yml's check.
+on:
+  pull_request:
+    types: [closed]
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: tag and publish release
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v')
+    steps:
+      # Explicit ref: main — pull_request checkouts default to a
+      # synthetic merge-preview ref, not real post-merge history, and we're about to tag it.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Extract version from branch name
+        id: version
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          echo "version=${HEAD_REF#release/}" >> "$GITHUB_OUTPUT"
+
+      - name: Tag release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.version }}" -m "${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.version }}"
+
+      # pst-specific (not in the payload copy): consumers pin the moving major
+      # (`uses: …reusable-*.yml@v1`, ADR-0004/#110) — advance it on every release.
+      - name: Advance the moving major tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git tag -f "${VERSION%%.*}" "$VERSION"
+          git push -f origin "${VERSION%%.*}"
+
+      # Mirrors the documented manual step (`git cliff --tag vX.Y.Z --latest --strip all`).
+      # GITHUB_TOKEN resolves PR links via cliff.toml's [remote.github], same as release-prepare.yml.
+      - name: Extract this release's notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ steps.version.outputs.version }} --latest --strip all
+        env:
+          OUTPUT: RELEASE_NOTES.md
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "${{ steps.version.outputs.version }}" \
+            --notes-file RELEASE_NOTES.md
+
+      - name: Delete the ephemeral release branch
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: git push origin --delete "$HEAD_REF"

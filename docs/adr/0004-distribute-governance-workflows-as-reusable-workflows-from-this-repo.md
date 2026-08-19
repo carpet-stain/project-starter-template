@@ -102,9 +102,16 @@ optional enforcement sugar, not rework.
 - The called workflows' job names become a cross-repo contract: renaming
   a job inside a shared workflow breaks six rulesets. Refactors of shared
   workflow internals are breaking changes and version like one.
-- Dependabot bump PRs replace hand-propagation; a repo can lag a pin
-  deliberately (blast-radius control) at the cost of temporary fleet
-  divergence that is at least visible as an open PR.
+- **Amended (#110):** consumers pin a moving major tag (`@v1`), not a
+  SHA. SHA-over-tag only defends against tag rewrites in a repo you
+  don't own — these are first-party workflows in the same account, so
+  the SHA bought nothing and cost N Dependabot bump-PR merges per
+  compatible change. With `@v1`, compatible changes propagate with zero
+  per-repo PRs; a breaking change to the caller contract (job `name:`s,
+  removed/renamed `workflow_call` inputs) cuts `v2` and repos migrate
+  deliberately. Dependabot bump PRs are moot for compatible changes and
+  relevant only at major bumps. This repo cuts real releases (its own
+  git-cliff automation); release-publish advances the moving major.
 - The payload thins: new repos get callers instead of full workflow
   bodies, so payload/consumer drift for the shared set disappears.
 - Revisit when #208 lands (upgrade enforcement to org required
