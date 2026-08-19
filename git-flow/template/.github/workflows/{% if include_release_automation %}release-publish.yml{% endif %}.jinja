@@ -56,7 +56,14 @@ jobs:
             --title "${{ steps.version.outputs.version }}" \
             --notes-file RELEASE_NOTES.md
 
-      - name: Delete the ephemeral release branch
+      # delete_branch_on_merge usually sweeps the branch first — deleting an
+      # already-gone ref must not fail the release run (#113).
+      - name: Delete the ephemeral release branch if it still exists
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: git push origin --delete "$HEAD_REF"
+        run: |
+          if git ls-remote --exit-code origin "refs/heads/$HEAD_REF" >/dev/null; then
+            git push origin --delete "$HEAD_REF"
+          else
+            echo "branch $HEAD_REF already deleted (delete_branch_on_merge) — nothing to do."
+          fi
