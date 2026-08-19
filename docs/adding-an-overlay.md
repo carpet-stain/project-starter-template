@@ -13,8 +13,8 @@ files (ADR-0020 in the template's source repo). An overlay ships:
   `import? 'justfile.lang'`. Never add a base verb (`lint`, `adr`) here — nor
   reuse a base recipe _name_ (`format` is base-owned for markdown): just
   hard-errors on recipe redefinition across imports, so the collision breaks
-  every `just` invocation in the rendered repo. The typescript overlay names
-  its formatter verb `fmt` for exactly this reason.
+  every `just` invocation in the rendered repo. Both overlays name their
+  formatter verb `fmt` for exactly this reason (#99).
 - `lefthook-lang.yml` — its own lefthook jobs, overwriting the base's empty
   stub. `lefthook.yml`'s `extends` picks it up either way. Never add a base
   job (`actionlint`, `markdownlint-cli2`, ...) here.

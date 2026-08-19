@@ -252,6 +252,9 @@ assert_no_unresolved "$overlay_dir" '{{' \
   README.md pyproject.toml tests/test_main.py src/fixture_project/__init__.py
 assert_lefthook_installed "$overlay_dir"
 assert_toml_valid "$overlay_dir"
+# just parses base + overlay justfiles — catches an overlay verb colliding
+# with a base recipe (the class #99 shipped; just hard-errors on redefinition).
+(cd "$overlay_dir" && just --list >/dev/null) || fail=1
 run_rendered_hook "$overlay_dir" pre-commit
 run_rendered_hook "$overlay_dir" pre-push
 
