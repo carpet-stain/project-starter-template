@@ -81,12 +81,17 @@ jobs:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: scripts/e2e-cleanup-stale.sh
 
-      # Single pnpm-version authority, same as lint-templates.yml: the action
-      # reads the typescript overlay's own `packageManager` pin (valid JSON).
+      # Single pnpm-version authority, same as lint-templates.yml: grep the
+      # overlay's `packageManager` pin (jinja blocks break JSON.parse, #97).
+      - name: Read pnpm pin from the template
+        if: inputs.overlay == 'typescript'
+        id: pnpm-pin
+        run: |
+          echo "version=$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' typescript/template/package.json.jinja)" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v4
         if: inputs.overlay == 'typescript'
         with:
-          package_json_file: typescript/template/package.json.jinja
+          version: ${{ steps.pnpm-pin.outputs.version }}
 
       - name: Render git-flow payload
         run: |

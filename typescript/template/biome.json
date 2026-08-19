@@ -1,6 +1,6 @@
 {
   "files": {
-    "includes": ["**/*.ts", "**/*.tsx", "**/*.js"]
+    "includes": ["**/*.ts", "**/*.tsx", "**/*.js", "!**/dist/**"]
   },
   "formatter": {
     "enabled": true,

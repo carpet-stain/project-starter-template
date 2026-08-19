@@ -48,11 +48,15 @@ jobs:
       - name: Install Node lint tools
         run: npm install --global lefthook markdownlint-cli2 prettier
 
-      # Single pnpm-version authority: read the typescript overlay's own
-      # `packageManager` pin (valid JSON — jinja only inside string values).
+      # Single pnpm-version authority: grep the typescript overlay's own
+      # `packageManager` pin (jinja blocks in the manifest break JSON.parse, #97).
+      - name: Read pnpm pin from the template
+        id: pnpm-pin
+        run: |
+          echo "version=$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' typescript/template/package.json.jinja)" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v4
         with:
-          package_json_file: typescript/template/package.json.jinja
+          version: ${{ steps.pnpm-pin.outputs.version }}
 
       # Same tools/versions as the rendered lint.yml.jinja's install steps —
       # kept in sync by hand (doubled-list cost #27 already accepted).

@@ -31,9 +31,10 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # The same lefthook registry contributors run locally, scoped to the
-      # overlay's jobs via their tag — the base workflow runs the base slice.
+      # The same lefthook registry contributors run locally — the source of
+      # truth; pre-push carries tsc --noEmit and, for project_kind=lib, the build.
       - name: Run language lint (lefthook lang slice)
         run: pnpm dlx lefthook run pre-commit --all-files --tag lang
-      - run: pnpm exec tsc --noEmit
+      - name: Run language pre-push slice (typecheck; lib adds the build)
+        run: pnpm dlx lefthook run pre-push --all-files --tag lang
       - run: pnpm run test

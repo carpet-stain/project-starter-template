@@ -270,8 +270,17 @@ assert_file_set "$ts_dir" true
 assert_no_unresolved "$ts_dir" '[[' \
   .github/workflows/adr-guard.yml .github/workflows/lint.yml .github/workflows/pr-guards.yml \
   cliff.toml justfile.release .github/workflows/release-prepare.yml .github/workflows/release-publish.yml
-assert_no_unresolved "$ts_dir" '{{' README.md package.json
+assert_no_unresolved "$ts_dir" '{{' README.md package.json src/index.ts
 assert_json_valid "$ts_dir" package.json tsconfig.json biome.json
+# Default project_kind renders the app shape — private, no build config.
+grep -q '"private": true' "$ts_dir/package.json" || {
+  echo "typescript app render lost private: true" >&2
+  fail=1
+}
+[ -e "$ts_dir/tsconfig.build.json" ] && {
+  echo "tsconfig.build.json present in an app render" >&2
+  fail=1
+}
 # Files test.yml reads at runtime but nothing below executes — a dotfile a
 # contributor's global gitignore swallowed shipped as a missing file once (#100).
 for f in .node-version pnpm-lock.yaml; do
@@ -290,6 +299,41 @@ run_rendered_hook "$ts_dir" pre-push
 # Inline typecheck + test; biome is a lang-tagged lefthook job already run above.
 (cd "$ts_dir" && pnpm exec tsc --noEmit) || fail=1
 (cd "$ts_dir" && pnpm run test) || fail=1
+
+echo "==> rendering + verifying git-flow + typescript overlay (project_kind=lib)"
+ts_lib_dir=$(render git-flow -d github_owner=fixture-owner -d github_repo=fixture-repo)
+uvx copier copy --trust --defaults --overwrite \
+  -d project_name="Fixture Project" \
+  -d description="A fixture project for template lint validation." \
+  -d author_name="Fixture Author" \
+  -d author_email="fixture@example.com" \
+  -d project_kind=lib \
+  typescript "$ts_lib_dir" >&2
+assert_file_set "$ts_lib_dir" true
+assert_no_unresolved "$ts_lib_dir" '{{' README.md package.json src/index.ts
+assert_json_valid "$ts_lib_dir" package.json tsconfig.json tsconfig.build.json biome.json
+# Publishable shape: not private, exports present, the declaration build
+# emits — tsc --noEmit never exercises emit (TS2742 class), so build for real.
+grep -q '"private"' "$ts_lib_dir/package.json" && {
+  echo "lib render still carries private" >&2
+  fail=1
+}
+grep -q '"exports"' "$ts_lib_dir/package.json" || {
+  echo "lib render missing exports" >&2
+  fail=1
+}
+assert_lefthook_installed "$ts_lib_dir"
+(cd "$ts_lib_dir" && just --list >/dev/null) || fail=1
+(cd "$ts_lib_dir" && pnpm run build) || fail=1
+for f in dist/index.js dist/index.d.ts; do
+  [ -f "$ts_lib_dir/$f" ] || {
+    echo "lib build did not emit $f" >&2
+    fail=1
+  }
+done
+run_rendered_hook "$ts_lib_dir" pre-commit
+run_rendered_hook "$ts_lib_dir" pre-push
+(cd "$ts_lib_dir" && pnpm run test) || fail=1
 
 if [ "$fail" -ne 0 ]; then
   echo "lint-templates: FAILED" >&2

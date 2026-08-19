@@ -37,9 +37,13 @@ template's source repo).
 
 - Single-package ESM layout (`src/`, `tests/`): Node runtime, pnpm via
   Corepack, Biome lint/format, strict `tsc --noEmit`, vitest, tsx (ADR-0003)
-- `package.json`: `private: true`, `start` entry (`tsx src/index.ts` — no
-  `main`; nothing is built), `packageManager` pinning the exact pnpm
-  (Corepack's single authority), `engines.node` floor
+- Two shapes via the `project_kind` question (#97): **`app`** (the default —
+  `private: true`, `start` entry via tsx, no build) or **`lib`** (publishable
+  — `files`/`main`/`types`/`exports` onto `dist/`, a `build` script running
+  `tsc -p tsconfig.build.json` for declaration emit, checked on pre-push and
+  in CI; `publishConfig` deliberately unset until a registry consumer exists)
+- `package.json`: `packageManager` pinning the exact pnpm (Corepack's single
+  authority), `engines.node` floor
 - `.node-version` pinned to the Node LTS current at template-authoring time.
   The Node version lives there **and** as the `engines.node` floor — a bump
   touches both
@@ -59,5 +63,4 @@ template's source repo).
   it up next to `lint`/`adr`
 
 Commit `pnpm-lock.yaml` in the initial commit — CI's `--frozen-lockfile`
-fails without it. `project_kind: lib` (a publishable build) is deferred
-to #97.
+fails without it.

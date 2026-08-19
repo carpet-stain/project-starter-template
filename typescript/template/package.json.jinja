@@ -4,13 +4,29 @@
   "description": "{{ description }}",
   "author": "{{ author_name }} <{{ author_email }}>",
   "type": "module",
+{% if project_kind == 'app' %}
   "private": true,
+{% else %}
+  "files": ["dist"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+{% endif %}
   "packageManager": "pnpm@11.22.0",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
+{% if project_kind == 'app' %}
     "start": "tsx src/index.ts",
+{% else %}
+    "build": "tsc -p tsconfig.build.json",
+{% endif %}
     "test": "vitest run tests/",
     "typecheck": "tsc --noEmit",
     "format": "biome format --write ."

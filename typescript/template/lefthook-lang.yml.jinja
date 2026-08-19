@@ -19,3 +19,11 @@ pre-push:
     - name: tsc
       tags: [lang]
       run: pnpm exec tsc --noEmit
+{% if project_kind == 'lib' %}
+
+    # tsc --noEmit never exercises declaration emit (TS2742 class) — the
+    # published artifact path must build, not just typecheck (#97).
+    - name: build
+      tags: [lang]
+      run: pnpm run build
+{% endif %}

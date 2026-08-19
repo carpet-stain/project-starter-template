@@ -1,10 +1,14 @@
+{% if project_kind == 'app' %}
 import { fileURLToPath } from "node:url";
 
+{% endif %}
 export function main(): void {
   console.log("Hello from the TypeScript starter!");
 }
+{% if project_kind == 'app' %}
 
 // Run only as an entry point (`pnpm start`), not when imported by tests.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main();
 }
+{% endif %}
