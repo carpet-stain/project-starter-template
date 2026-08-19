@@ -29,11 +29,12 @@
 # usage: scripts/bootstrap-branch-protection.sh [branch] [extra-check ...]
 #   branch        protected branch (default: repo's default branch)
 #   extra-check   additional required status check name, repeatable
-#                 (e.g. "lint" — CI job names vary per repo/language;
-#                 "single commit" and "conventional commit" are always
-#                 required since they come from the pr-guards.yml template
-#                 verbatim, and "adr guard" is added automatically when
-#                 .github/workflows/adr-guard.yml is present)
+#                 (e.g. "guards / lint" — CI job names vary per repo/language;
+#                 "guards / single commit" and "guards / conventional commit"
+#                 are always required — composed `<caller job> / <called job>`
+#                 names since the guards are reusable-workflow callers
+#                 (ADR-0004) — and "guards / adr guard" is added automatically
+#                 when .github/workflows/adr-guard.yml is present)
 #
 # Free-tier gotcha: GitHub rulesets need GitHub Pro or a public repo — a
 # private repo 403s until upgraded or made public.
@@ -70,9 +71,9 @@ EXISTING_ID=$(echo "$RULESETS_JSON" | jq -r --arg name "$RULESET_NAME" '.[] | se
 
 # Gate adr-guard's check on the workflow file's presence — pinning it
 # unconditionally would block every PR on a repo that opted out.
-REQUIRED_CHECKS=("single commit" "conventional commit")
+REQUIRED_CHECKS=("guards / single commit" "guards / conventional commit")
 if [[ -f .github/workflows/adr-guard.yml ]]; then
-  REQUIRED_CHECKS+=("adr guard")
+  REQUIRED_CHECKS+=("guards / adr guard")
 fi
 
 CHECKS_JSON=$(printf '%s\n' "${REQUIRED_CHECKS[@]}" "${EXTRA_CHECKS[@]}" |

@@ -1,7 +1,7 @@
 name: PR guards
 
-# Enforces the one-commit-per-PR + rebase-merge workflow (AGENTS.md) and
-# that every PR closes an issue or declares why not (dotfiles#449).
+# Thin caller — the guard bodies live in reusable-pr-guards.yml (ADR-0004).
+# Same-repo local `uses:` runs this commit's copy; consumers pin a SHA.
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
@@ -16,89 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  single-commit:
-    name: single commit
-    runs-on: ubuntu-latest
-    # Job-level `if:` — a skipped-via-if job reads as passing to
-    # required-status-check branch protection, not failing.
-    if: github.event.pull_request.draft == false
-    steps:
-      - name: Assert the PR is exactly one commit
-        env:
-          COMMITS: ${{ github.event.pull_request.commits }}
-        run: |
-          if [ "$COMMITS" -ne 1 ]; then
-            echo "::error::PR has $COMMITS commits; squash to exactly one before merge (git rebase origin/main && git reset --soft origin/main && git commit)."
-            exit 1
-          fi
-          echo "PR is a single commit."
-
-  conventional-commit:
-    name: conventional commit
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-
-      # The commit that rebase-merges onto main is what git-cliff reads
-      # for the changelog, so its subject must be a Conventional Commit.
-      - name: Validate Conventional Commit subject
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          rc=0
-          for sha in $(git rev-list "$BASE"..HEAD); do
-            subject=$(git log -1 --format=%s "$sha")
-            if echo "$subject" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-z0-9._-]+\))?!?: .+'; then
-              echo "ok: $subject"
-            else
-              echo "::error::not a Conventional Commit: $subject"
-              rc=1
-            fi
-          done
-          exit $rc
-
-  issue-link:
-    name: issue link
-    runs-on: ubuntu-latest
-    # release/* PRs close no issue by design — exempted here in-guard so
-    # the whole contract stays in this one file (dotfiles#449).
-    if: github.event.pull_request.draft == false && !startsWith(github.event.pull_request.head.ref, 'release/')
-    steps:
-      # closingIssuesReferences is GitHub's own computed field (dotfiles#449),
-      # not a body-text regex — a typo'd closing keyword fails this check too.
-      - name: Require a closing issue reference or a No-Issue marker
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: |
-          # shellcheck disable=SC2016 # single-quoted GraphQL vars, not bash
-          # ($owner/$repo/$number passed via -f/-F below).
-          count=$(gh api graphql -f query='
-            query($owner: String!, $repo: String!, $number: Int!) {
-              repository(owner: $owner, name: $repo) {
-                pullRequest(number: $number) {
-                  closingIssuesReferences { totalCount }
-                }
-              }
-            }' -f owner="$OWNER" -f repo="$REPO" -F number="$PR_NUMBER" \
-            --jq '.data.repository.pullRequest.closingIssuesReferences.totalCount')
-
-          if [ "$count" -gt 0 ]; then
-            echo "closes $count issue(s) — ok."
-            exit 0
-          fi
-
-          if echo "$PR_BODY" | grep -qE '^No-Issue:[[:space:]]*[^[:space:]]'; then
-            echo "No-Issue marker present — ok."
-            exit 0
-          fi
-
-          echo "::error::PR closes no issue and has no No-Issue: marker. Add \`Closes #N\` to the body, or a \`No-Issue: <reason>\` line."
-          exit 1
+  # Job id `guards` is ruleset contract: required contexts are
+  # `guards / single commit` etc. — renaming this id breaks the ruleset (#104).
+  guards:
+    uses: ./.github/workflows/reusable-pr-guards.yml
