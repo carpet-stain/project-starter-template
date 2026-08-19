@@ -14,12 +14,26 @@ Commit `pnpm-lock.yaml` with the initial commit — CI installs with
 
 ## Use
 
+{% if project_kind == 'app' %}
 ```sh
 pnpm start       # run the app (tsx)
 just test        # vitest
 just typecheck   # tsc --noEmit (the only type check — vitest/tsx never check)
 just fmt         # biome (the base's `format` verb owns markdown)
 ```
+{% else %}
+```sh
+just build       # emit dist/ + declarations (tsc -p tsconfig.build.json)
+just test        # vitest
+just typecheck   # tsc --noEmit (the only type check — vitest/tsx never check)
+just fmt         # biome (the base's `format` verb owns markdown)
+```
+
+Keep public exports explicitly typed — declaration emit (the build) fails on
+non-portable inferred types (TS2742) that `typecheck` alone never sees.
+`publishConfig` is deliberately unset: pick the registry when this actually
+publishes somewhere.
+{% endif %}
 
 ## Contributing
 

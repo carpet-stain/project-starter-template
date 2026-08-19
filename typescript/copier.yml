@@ -1,5 +1,11 @@
 _subdirectory: template
 
+# Block tags (`{% if project_kind %}`) on their own lines render without
+# residue; j2lint forbids the `{%-` whitespace-control spelling.
+_envops:
+  trim_blocks: true
+  lstrip_blocks: true
+
 project_name:
   type: str
   help: Human-readable project name (e.g. "Golden Ratio")
@@ -13,6 +19,14 @@ description:
   type: str
   help: One-line project description
   default: ""
+
+project_kind:
+  type: str
+  help: Project shape — app (private, tsx entry) or lib (publishable, builds dist/)
+  choices:
+    - app
+    - lib
+  default: app
 
 author_name:
   type: str
