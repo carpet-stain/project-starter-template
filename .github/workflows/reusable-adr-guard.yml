@@ -16,14 +16,15 @@ jobs:
     # caller never expands this workflow and its required check hangs (#104).
     if: github.event.pull_request.draft == false
     steps:
-      # Step condition, not job-level `if:` — a required check must always
-      # report a conclusion; skipped sits pending forever and blocks merge.
+      # Unconditional: the spelling guard below needs the tree on every PR,
+      # not just architecture-labeled ones.
       - uses: actions/checkout@v7
-        if: contains(github.event.pull_request.labels.*.name, 'architecture')
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
+      # Step condition, not job-level `if:` — a required check must always
+      # report a conclusion; skipped sits pending forever and blocks merge.
       - name: Require a docs/adr/ touch on architecture-labeled PRs
         if: contains(github.event.pull_request.labels.*.name, 'architecture')
         env:
@@ -35,5 +36,14 @@ jobs:
             echo "architecture-labeled PR touches docs/adr/ — ok."
           else
             echo "::error::PR is labeled 'architecture' but adds/modifies no docs/adr/ file. Record the decision as an ADR (see docs/adr/README.md) before merge."
+            exit 1
+          fi
+
+      - name: Reject the Superceded misspelling
+        # adr-tools' own template writes this misspelling (#124) — catch any
+        # occurrence, however it got in, not just ones from that one tool.
+        run: |
+          if grep -rl 'Superceded' docs/adr/ 2>/dev/null; then
+            echo "::error::docs/adr/ contains the misspelling 'Superceded' — use 'Superseded by NNNN' (see docs/adr/README.md § Superseding)."
             exit 1
           fi
