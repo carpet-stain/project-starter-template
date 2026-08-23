@@ -74,6 +74,13 @@ pre-commit:
         - "lefthook.yml"
       run: scripts/check-comment-concision.sh {staged_files}
 
+    - name: workflow-secrets
+      tags: [base]
+      glob:
+        - ".github/workflows/*.yml"
+        - ".github/workflows/*.yaml"
+      run: scripts/check-workflow-secrets.sh {staged_files}
+
     - name: justfile-format
       tags: [base]
       glob:
