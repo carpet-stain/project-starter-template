@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project, generated from Conventional Commits.
+## [1.1.0] - 2026-08-23
+
+### Features
+
+- *(ci)* Scheduled reconcile for stale blocked labels ([#127](https://github.com/carpet-stain/project-starter-template/pull/127))
+
+### Bug Fixes
+
+- *(release)* Tolerate an already-deleted release branch ([#114](https://github.com/carpet-stain/project-starter-template/pull/114))
+
 ## [1.0.0] - 2026-08-19
 
 ### Features
