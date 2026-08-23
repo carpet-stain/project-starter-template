@@ -66,11 +66,13 @@ hand-apply. Greenfield repos don't need it — `copier copy`/`py-new.sh`/
 - `.github/workflows/epic-complete.yml` — closes an epic the moment its last
   same-repo sub-issue closes, behind a conservative cross-repo guard
   (dotfiles ADR-0047). Gates on the `epic` label from the canonical taxonomy
-- `docs/adr/` scaffolding — `README.md` (what an ADR is, when to write one),
-  `templates/template.md` (the Nygard template), `scripts/new-adr.sh` (stamps
-  the next-numbered ADR from it — run via `just adr`, no adr-tools dependency),
-  `.adr-dir`, and a seed `0001-record-architecture-decisions.md` so the
-  directory exists in a fresh checkout
+- `docs/adr/` scaffolding — `README.md` (what an ADR is, when to write one,
+  the amendment style), `templates/template.md` (the Nygard template, with a
+  self-sufficient bulleted `Decision`), `scripts/new-adr.sh` (stamps the
+  next-numbered ADR from it and prints the significance checklist first — run
+  via `just adr`, no adr-tools dependency), `.adr-dir`, and a seed
+  `0001-record-architecture-decisions.md` so the directory exists in a fresh
+  checkout
 - `.github/workflows/release-prepare.yml` / `release-publish.yml` +
   `cliff.toml` + `justfile.release` (if release automation is included) —
   manual-dispatch version bump via git-cliff, a release PR, tag + GitHub
