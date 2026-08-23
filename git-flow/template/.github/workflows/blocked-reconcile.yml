@@ -1,0 +1,16 @@
+name: Blocked reconcile
+
+# Thin caller — the body lives in the template source repo's
+# reusable-blocked-reconcile.yml — pinned to its moving major tag (its ADR-0004/#110).
+on:
+  issues:
+    types: [labeled]
+  schedule:
+    - cron: "17 13 * * *"
+
+permissions:
+  issues: write
+
+jobs:
+  blocked-reconcile:
+    uses: carpet-stain/project-starter-template/.github/workflows/reusable-blocked-reconcile.yml@v1

@@ -1,0 +1,105 @@
+name: Reusable blocked reconcile
+
+# Fleet single copy (ADR-0004); reference format is ADR-0005. Caller triggers
+# on `issues: labeled` (misuse) + `schedule` (poll). Breaking contract cuts v2 (#110).
+on:
+  workflow_call:
+
+permissions:
+  issues: write
+
+jobs:
+  misuse:
+    name: misuse
+    if: github.event_name == 'issues' && github.event.label.name == 'blocked'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clear blocked if a native blocked-by link is still open
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          # shellcheck disable=SC2016 # single-quoted: GraphQL's own variables.
+          open_native=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) {
+                issue(number: $number) {
+                  blockedBy(first: 100) { nodes { number state repository { nameWithOwner } } }
+                }
+              }
+            }' -f owner="$OWNER" -f repo="$REPO" -F number="$ISSUE" \
+            --jq '[.data.repository.issue.blockedBy.nodes[] | select(.state == "OPEN")]')
+
+          count=$(jq 'length' <<<"$open_native")
+          if [ "$count" -eq 0 ]; then
+            echo "no open native blocked-by links — blocked label is legitimate, nothing to do."
+            exit 0
+          fi
+
+          refs=$(jq -r '.[] | "\(.repository.nameWithOwner)#\(.number)"' <<<"$open_native" | paste -sd, -)
+          gh issue edit "$ISSUE" -R "$OWNER/$REPO" --remove-label blocked
+          # shellcheck disable=SC2016 # literal backticks (markdown), not command substitution.
+          gh issue comment "$ISSUE" -R "$OWNER/$REPO" --body "$(printf 'Removed `blocked`: this issue has an open native `blocked-by` link (%s) — under the narrowed convention (see #309), native blocking already says it, and `blocked` is reserved for a non-native blocker. Reopen only if `blocked` also names a separate non-native reason.\n\n<!-- blocked-reconcile:misuse -->' "$refs")"
+
+  poll:
+    name: poll
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reconcile stale blocked labels against their structured references
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          # Reference format: ADR-0005. Every failure mode fails closed —
+          # the label only ever clears when every parsed reference resolves.
+          issues=$(gh issue list -R "$OWNER/$REPO" --label blocked --state open --json number --jq '.[].number')
+
+          for issue in $issues; do
+            comments=$(gh issue view "$issue" -R "$OWNER/$REPO" --json comments --jq '[.comments[].body] | join("\n---\n")')
+
+            refs=$(grep -oE 'Blocked-by:[[:space:]]*(https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/(issues|pull)/[0-9]+|[A-Za-z0-9._-]+/[A-Za-z0-9._-]+#[0-9]+)' <<<"$comments" \
+              | sed -E 's#^Blocked-by:[[:space:]]*##' \
+              | sed -E 's,https://github\.com/([^/]+)/([^/]+)/(issues|pull)/([0-9]+),\1/\2#\4,' \
+              | sort -u || true)
+
+            if [ -z "$refs" ]; then
+              marker="<!-- blocked-reconcile:no-reference -->"
+              if grep -qF "$marker" <<<"$comments"; then
+                echo "#$issue: no parseable Blocked-by reference — already flagged, staying quiet."
+              else
+                echo "#$issue: no parseable Blocked-by reference — flagging once."
+                # shellcheck disable=SC2016 # literal backticks (markdown), not command substitution.
+                gh issue comment "$issue" -R "$OWNER/$REPO" --body "$(printf '`blocked` is set but no `Blocked-by:` reference could be parsed from any comment — see ADR-0005 in project-starter-template for the required format. The label stays until one is added; this is a one-time nudge, not a repeat.\n\n%s' "$marker")"
+              fi
+              continue
+            fi
+
+            all_closed=true
+            resolved_list=""
+            for ref in $refs; do
+              repo_part=${ref%%#*}
+              num_part=${ref##*#}
+              state=$(gh issue view "$num_part" -R "$repo_part" --json state --jq .state 2>/dev/null) || {
+                echo "#$issue: couldn't fetch $ref — transient, retrying next run."
+                all_closed=false
+                continue 2
+              }
+              if [ "$state" != "CLOSED" ]; then
+                echo "#$issue: $ref still open — still blocked."
+                all_closed=false
+                continue 2
+              fi
+              resolved_list="$resolved_list $ref"
+            done
+
+            if [ "$all_closed" = true ]; then
+              gh issue edit "$issue" -R "$OWNER/$REPO" --remove-label blocked
+              # shellcheck disable=SC2016 # literal backticks (markdown), not command substitution.
+              gh issue comment "$issue" -R "$OWNER/$REPO" --body "$(printf 'Removed `blocked`: every referenced blocker has resolved (%s).\n\n<!-- blocked-reconcile:cleared -->' "$resolved_list")"
+              echo "#$issue: cleared."
+            fi
+          done
