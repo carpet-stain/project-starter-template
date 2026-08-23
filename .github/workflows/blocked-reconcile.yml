@@ -1,0 +1,16 @@
+name: Blocked reconcile
+
+# Thin caller — the body lives in reusable-blocked-reconcile.yml (ADR-0004).
+# Same-repo local `uses:` runs this commit's copy; consumers pin `@v1` (#110).
+on:
+  issues:
+    types: [labeled]
+  schedule:
+    - cron: "17 13 * * *"
+
+permissions:
+  issues: write
+
+jobs:
+  blocked-reconcile:
+    uses: ./.github/workflows/reusable-blocked-reconcile.yml
