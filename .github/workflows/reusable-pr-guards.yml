@@ -11,7 +11,7 @@ on:
           guard (they close no issue by design, e.g. release automation).
         type: string
         required: false
-        default: "release/"
+        default: "release/ dependabot/"
 
 permissions:
   contents: read
