@@ -37,3 +37,22 @@ When a later decision replaces an earlier one, create the new ADR, then set the
 old one's Status to `Superseded by NNNN` (and the new one's to `Supersedes NNNN`)
 rather than editing the old ADR to match the new reality. The rejected path
 staying visible is the point.
+
+`adr-guard.yml` enforces the second half of that edit too: a new or modified
+ADR whose Status says `Supersedes NNNN` must land in the same PR as an edit
+to `NNNN`'s file, or CI fails — the two-file edit doesn't get to happen in
+one PR and not the other.
+
+## Decision length
+
+`adr-guard.yml` caps each ADR's `## Decision` section at 500 words — code
+blocks and tables don't count. `Alternatives considered` and `Consequences`
+are exempt entirely; they're the sections worth keeping long. If a decision
+earns going over, add a visible line rather than splitting it across two
+ADRs to duck the counter:
+
+```md
+## Decision
+
+> Decision-length override: <why this decision doesn't split cleanly>
+```
