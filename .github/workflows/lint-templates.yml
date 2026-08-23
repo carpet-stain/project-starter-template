@@ -54,7 +54,7 @@ jobs:
         id: pnpm-pin
         run: |
           echo "version=$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' typescript/template/package.json.jinja)" >> "$GITHUB_OUTPUT"
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ steps.pnpm-pin.outputs.version }}
 
