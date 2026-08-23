@@ -12,7 +12,13 @@ What forces are at play — the problem, constraints, why it needs a decision no
 
 ## Decision
 
-What we're doing, stated plainly.
+- **Chosen:** what we're doing, stated plainly.
+- **Because:** the binding rationale — why this beats the alternatives below,
+  self-contained (a reader shouldn't need the tracking issue to follow it).
+- **Constraints:** what this choice locks in or rules out going forward.
+
+Implementation mechanics — file lists, sequencing, acceptance criteria —
+belong on the tracking issue; link it, don't restate it here.
 
 ## Alternatives considered
 
