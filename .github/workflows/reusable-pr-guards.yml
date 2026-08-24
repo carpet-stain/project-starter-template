@@ -40,27 +40,24 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-
       # The commit that rebase-merges onto the protected branch is what
-      # git-cliff reads for the changelog — subject must be Conventional.
+      # git-cliff reads for the changelog — subject must be Conventional. API-only, no checkout: see #138.
       - name: Validate Conventional Commit subject
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           rc=0
-          for sha in $(git rev-list "$BASE"..HEAD); do
-            subject=$(git log -1 --format=%s "$sha")
+          while IFS= read -r subject; do
             if echo "$subject" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-z0-9._-]+\))?!?: .+'; then
               echo "ok: $subject"
             else
               echo "::error::not a Conventional Commit: $subject"
               rc=1
             fi
-          done
+          done < <(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/commits" --jq '.[].commit.message | split("\n")[0]')
           exit $rc
 
   issue-link:
