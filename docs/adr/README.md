@@ -64,7 +64,11 @@ Accepted. Amends 0035 (clause: <short clause name>).
 Accepted. Amended by 0037 (clause: <short clause name>).
 ```
 
-No tooling support — edit both files by hand. This is the one amendment
+`adr-guard.yml` enforces the second half of that edit too, the same way it
+does for Superseding: a new or modified ADR whose Status says `Amends NNNN`
+must land in the same PR as an edit to `NNNN`'s file, or CI fails. It checks
+that the target is touched, not that its marker text is well-formed — the
+marker itself is still a hand-written convention. This is the one amendment
 style; a repo may instead carry amendments appended **inline** as new
 `## Amendment — ...` sections on the target ADR (infra's history) — that
 style is deprecated. Don't add new inline sections; extract existing ones to

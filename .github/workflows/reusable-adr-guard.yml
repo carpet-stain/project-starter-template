@@ -87,7 +87,7 @@ jobs:
           done < <(git diff --name-only --diff-filter=ACM "$BASE"...HEAD -- 'docs/adr/*.md')
           exit "$status"
 
-      - name: Enforce the ADR amendment marker
+      - name: Enforce the ADR amendment and supersession markers
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -101,8 +101,34 @@ jobs:
           }
 
           status=0
+          # Loops over every match, not just the first — an ADR naming two
+          # targets needs both checked (#135).
+          check_refs() {
+            local file="$1" this_num="$2" status_section="$3"
+            local keyword="$4" reciprocal="$5" section="$6"
+            local ref target
+            while IFS= read -r ref; do
+              [[ -n "$ref" ]] || continue
+              target=$(find docs/adr -maxdepth 1 -name "${ref}-*.md" | head -n1)
+
+              if [[ -z "$target" ]]; then
+                echo "::error file=$file::Status says '$keyword $ref' but no docs/adr/${ref}-*.md exists."
+                status=1
+                continue
+              fi
+
+              if ! is_changed "$target"; then
+                echo "::error file=$file::Status says '$keyword $ref' but $target isn't modified in this PR. Set its Status to '$reciprocal $this_num' in the same PR ($section)."
+                status=1
+              fi
+            done < <(printf '%s\n' "$status_section" | grep -oE "${keyword} [0-9]{4}" | awk '{print $2}')
+          }
+
           for file in "${changed[@]}"; do
             [[ -f "$file" ]] || continue
+            # Skip non-ADR files (e.g. README.md) — its own doc examples
+            # contain literal '## Status' headers the section scan can't tell apart.
+            [[ "$(basename "$file")" =~ ^[0-9]{4}- ]] || continue
 
             status_section=$(awk '
               /^## Status[ \t]*$/ { inside = 1; next }
@@ -110,21 +136,9 @@ jobs:
               inside { print }
             ' "$file")
 
-            ref=$(printf '%s\n' "$status_section" | grep -oE 'Supersedes [0-9]{4}' | awk '{print $2}' | head -n1)
-            [[ -n "$ref" ]] || continue
-
-            target=$(find docs/adr -maxdepth 1 -name "${ref}-*.md" | head -n1)
             this_num=$(basename "$file" | grep -oE '^[0-9]{4}')
 
-            if [[ -z "$target" ]]; then
-              echo "::error file=$file::Status says 'Supersedes $ref' but no docs/adr/${ref}-*.md exists."
-              status=1
-              continue
-            fi
-
-            if ! is_changed "$target"; then
-              echo "::error file=$file::Status says 'Supersedes $ref' but $target isn't modified in this PR. Set its Status to 'Superseded by $this_num' in the same PR (docs/adr/README.md § Superseding)."
-              status=1
-            fi
+            check_refs "$file" "$this_num" "$status_section" "Supersedes" "Superseded by" "docs/adr/README.md § Superseding"
+            check_refs "$file" "$this_num" "$status_section" "Amends" "Amended by" "docs/adr/README.md § Amending a clause"
           done
           exit "$status"
