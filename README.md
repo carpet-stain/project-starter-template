@@ -1,10 +1,19 @@
 # project-starter-template
 
-Copier toolkit for scaffolding governed GitHub repos: a language-agnostic
-git-flow governance base, plus language overlays layered on top (currently
-`python/` and `typescript/`). This repo _is_ the base — it's bootstrapped from its own
-`git-flow` template (dogfood: the repo that ships the base is itself
-governed by it).
+Two roles, two lifecycles:
+
+- **Copier toolkit** for scaffolding governed GitHub repos: a
+  language-agnostic git-flow governance base, plus language overlays layered
+  on top (currently `python/` and `typescript/`). This repo _is_ the base —
+  it's bootstrapped from its own `git-flow` template (dogfood: the repo that
+  ships the base is itself governed by it). Templates are **copy-once** (see
+  Use below).
+- **Reusable-workflow host** for the governance CI workflows (`adr-guard`,
+  `pr-guards`, `lint`, `epic-complete`) that consuming repos call via `@v1`.
+  Unlike the templates, this is a **live dependency**: editing a workflow
+  here lands in every consumer's next CI run. See
+  [ADR-0004](docs/adr/0004-distribute-governance-workflows-as-reusable-workflows-from-this-repo.md)
+  for the why.
 
 ## Install
 
