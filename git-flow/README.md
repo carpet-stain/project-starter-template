@@ -86,11 +86,16 @@ hand-apply. Greenfield repos don't need it — `copier copy`/`py-new.sh`/
 - `justfile` + `justfile.base` — the composition root (`import
 'justfile.base'`, `import? 'justfile.lang'`, `import? 'justfile.release'`)
   and the base verbs: `just lint` (wraps `lefthook run pre-commit
---all-files`, the entry point CI shares), `just adr`, and `just format`
+--all-files`, the entry point CI shares), `just adr`, `just format`
   (fixes what the `md-format` lefthook job only checks — deliberately a
-  recipe, not a hook, dotfiles#406). An overlay drops its verbs in
-  `justfile.lang`; release automation drops `cliff-preview` in
-  `justfile.release`
+  recipe, not a hook, dotfiles#406), and `just token-cost <issue>` (posts
+  per-issue token spend as a closing comment; a thin wrapper around
+  `record-token-cost`, a PATH-deployed tool dotfiles owns and implements —
+  see its own repo for the tool and the accounting model. Reads that
+  maintainer's local Claude transcripts, so it's a no-op with a clear
+  message, not a failure, on a machine without the tool on PATH). An overlay
+  drops its verbs in `justfile.lang`; release automation drops
+  `cliff-preview` in `justfile.release`
 - `lefthook.yml` + `lefthook-base.yml` + `lefthook-lang.yml` — the composition
   root (`extends` both), the base jobs tagged `base` (`actionlint`,
   `markdownlint-cli2`, `prettier`, `yamlfmt`, `gitleaks`, `shfmt`,
