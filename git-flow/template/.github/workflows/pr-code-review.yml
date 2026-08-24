@@ -3,6 +3,9 @@ name: PR code review (advisory)
 # Deliberately NOT a required status check: an LLM reviewer false-positives, and a
 # rate-limit/outage must never block a merge. Vendored DIY step from dotfiles (project-starter-template#60).
 
+# Credential path mirrors e2e-live.yml's OIDC→SSM idiom (infra ADR-0010/0011):
+# no stored repo secret. Unset `vars.AWS_OPENROUTER_ROLE_ARN` skips cleanly (green).
+
 on:
   pull_request:
     types: [opened, synchronize, labeled]
@@ -10,20 +13,45 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  id-token: write
 
 jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      - name: Check for the review API key
+      # continue-on-error: advisory credential path, never merge-blocking —
+      # a role-assume failure falls through to the guard step below.
+      - name: Assume the OpenRouter key read role via OIDC
+        id: aws-creds
+        if: vars.AWS_OPENROUTER_ROLE_ARN != ''
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_OPENROUTER_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Fetch the review API key from SSM
         id: guard
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          if [ -z "$OPENAI_API_KEY" ]; then
-            echo "OPENAI_API_KEY not set — advisory review skipped." >&2
+          if [ -z "${{ vars.AWS_OPENROUTER_ROLE_ARN }}" ]; then
+            echo "AWS_OPENROUTER_ROLE_ARN not set — advisory review skipped." >&2
+            echo "enabled=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${{ steps.aws-creds.outcome }}" != "success" ]; then
+            echo "::warning::OIDC role assume failed — advisory review skipped."
+            echo "enabled=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set +e
+          key="$(aws ssm get-parameter --name /runtime/openrouter-api-key --with-decryption --query Parameter.Value --output text 2>&1)"
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] || [ -z "$key" ]; then
+            echo "::warning::openrouter-api-key SSM fetch failed — advisory review skipped."
             echo "enabled=false" >>"$GITHUB_OUTPUT"
           else
+            echo "::add-mask::$key"
+            echo "OPENAI_API_KEY=$key" >>"$GITHUB_ENV"
             echo "enabled=true" >>"$GITHUB_OUTPUT"
           fi
       - uses: actions/checkout@v7
@@ -36,7 +64,8 @@ jobs:
         if: steps.guard.outputs.enabled == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # OPENAI_API_KEY rides $GITHUB_ENV from the guard step above
+          # (fetched from SSM), not a secrets.* reference.
           OPENAI_API_URL: https://openrouter.ai/api/v1/chat/completions
           OPENAI_MODEL: openai/gpt-5.6-sol
           PR_NUMBER: ${{ github.event.pull_request.number }}

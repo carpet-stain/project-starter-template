@@ -60,9 +60,10 @@ hand-apply. Greenfield repos don't need it — `copier copy`/`py-new.sh`/
 - `.github/workflows/pr-code-review.yml` — advisory review by a
   non-Anthropic model, never a required check. Triggers on a PR carrying
   `needs-review`, or on one closing a `plan-approved` issue (plan-conformance
-  review). Inert until an `OPENAI_API_KEY` repo secret exists; skips cleanly
-  (green) without it — see `scripts/pr-review/run.mjs` and the workflow's own
-  comments.
+  review). Reads its review API key from AWS SSM via an OIDC-assumed role
+  (`vars.AWS_OPENROUTER_ROLE_ARN`), not a repo secret (infra ADR-0011); inert
+  and skips cleanly (green) until that role is configured — see
+  `scripts/pr-review/run.mjs` and the workflow's own comments.
 - `.github/workflows/epic-complete.yml` — closes an epic the moment its last
   same-repo sub-issue closes, behind a conservative cross-repo guard
   (dotfiles ADR-0047). Gates on the `epic` label from the canonical taxonomy
@@ -95,7 +96,8 @@ hand-apply. Greenfield repos don't need it — `copier copy`/`py-new.sh`/
   root (`extends` both), the base jobs tagged `base` (`actionlint`,
   `markdownlint-cli2`, `prettier`, `yamlfmt`, `gitleaks`, `shfmt`,
   `shellcheck`, `justfile-format`, `editorconfig-checker`,
-  `check-envrc-local-example.sh`), and an empty stub an overlay overwrites
+  `check-envrc-local-example.sh`, `check-workflow-secrets.sh`), and an empty
+  stub an overlay overwrites
   with its `lang`-tagged jobs
 - `.editorconfig`, `.markdownlint-cli2.yaml`, `.prettierrc.json`, `.yamlfmt`,
   `.gitleaks.toml` — the language-agnostic formatting and secrets-scanning
