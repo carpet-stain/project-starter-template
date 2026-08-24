@@ -1,7 +1,7 @@
 name: Reusable epic complete
 
 # Fleet single copy (ADR-0004); caller triggers on `issues: closed`; guard
-# rationale: dotfiles#592/#610 + ADR-0047. Breaking contract cuts v2 (#110).
+# rationale: dotfiles#592/#610 + ADR-0047/0052 (#132). Breaking contract cuts v2 (#110).
 on:
   workflow_call:
 
@@ -90,6 +90,30 @@ jobs:
             echo "parent #$number body references cross-repo work ($(head -1 <<<"$cross_ref")) — skipping (dotfiles ADR-0047 guard)."
             exit 0
           fi
+
+          # Guard leg 3: dedicated-member-repo signal is present-AND-open,
+          # unlike legs 1-2's presence-only (dotfiles ADR-0052 widening ADR-0047; see #132).
+          manifest=$(curl -fsSL --max-time 10 \
+            "https://raw.githubusercontent.com/$OWNER/dotfiles/main/project-manifest.yaml") \
+            || manifest=""
+          if [ -z "$manifest" ]; then
+            echo "could not fetch dotfiles project-manifest.yaml — skipping out of caution (dotfiles ADR-0052 guard widening)."
+            exit 0
+          fi
+
+          dedicated_repos=$(awk -v anchor="  - anchor: $REPO#$number" '
+            $0 == anchor { grab=1; next }
+            grab && /^  - anchor:/ { exit }
+            grab && /^      - / { sub(/^      - /, ""); print }
+          ' <<<"$manifest")
+
+          for dep_repo in $dedicated_repos; do
+            open=$(gh issue list --repo "$OWNER/$dep_repo" --state open --json number --limit 1 --jq 'length')
+            if [ "$open" -gt 0 ]; then
+              echo "parent #$number has dedicated member repo $OWNER/$dep_repo with open issues — skipping (dotfiles ADR-0052 guard widening)."
+              exit 0
+            fi
+          done
 
           # A prior auto-close marker on an OPEN epic means a human reopened
           # it — that override stands; never re-close on a later child event.
