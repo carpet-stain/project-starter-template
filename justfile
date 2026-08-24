@@ -29,6 +29,17 @@ adr *args:
 format:
     git ls-files -z '*.md' ':!:CHANGELOG.md' ':!:.claude/agent-memory/**' | xargs -0 prettier --write
 
+# Wraps the PATH-deployed record-token-cost (dotfiles owns the implementation,
+# git-flow/README.md has the pointer); skips rather than fails if it's absent.
+token-cost issue:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v record-token-cost >/dev/null 2>&1; then
+      echo "token-cost: record-token-cost not on PATH — skipping (see git-flow/README.md)."
+      exit 0
+    fi
+    record-token-cost {{ issue }}
+
 # Render-then-verify the copier templates this repo hosts (git-flow/python) —
 # see scripts/lint-templates.sh's own header for the strategy. Not part of
 # the base/overlay template contract shipped to consumers (this repo hosts
