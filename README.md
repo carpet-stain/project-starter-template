@@ -50,7 +50,10 @@ covers its questions, what it produces, and the full bootstrap runbook
 (labels, branch protection, the `RELEASE_PAT` secret) — this file is a
 pointer, not a restatement. A generated repo carries no
 `.copier-answers` file and has no `copier update` path: scaffold once,
-then evolve the repo directly — see `docs/adr/` for the decision and why.
+then evolve the repo directly — see
+[ADR-0006](docs/adr/0006-the-delivery-ladder-drift-rule-and-channel-invariants.md)
+for the decision and why (copy-once is the exception now, not the
+default — kept only where drift is acceptable by design).
 
 Adding a second language overlay? See
 [`docs/adding-an-overlay.md`](docs/adding-an-overlay.md) for the file-ownership
