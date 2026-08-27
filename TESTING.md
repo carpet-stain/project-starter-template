@@ -10,12 +10,14 @@ first two on every PR, the rest are on-demand.
 
 This repo's own lefthook pre-commit jobs (`lefthook.yml`) over the source
 tree: the standard base slice (actionlint, markdown, yaml, gitleaks, shell,
-editorconfig, comment-concision) plus two host-only jobs — `j2lint` (raw
+editorconfig, comment-concision) plus three host-only jobs — `j2lint` (raw
 jinja syntax; skips the known false-positive files, see
-`scripts/lint-templates.sh`'s header) and the vendored `pr-review` unit
-tests. CI split: `lint.yml` runs the base slice (`--tag base`); the two
-host-only jobs are untagged and gate in `lint-templates.yml` instead —
-j2lint inside the harness, pr-review as its own step.
+`scripts/lint-templates.sh`'s header), the vendored payload's `pr-review`
+unit tests, and pst's own `pr-review` copy's unit tests (#155 — the live
+advisory reviewer running on this repo itself, distinct from the payload).
+CI split: `lint.yml` runs the base slice (`--tag base`); the three host-only
+jobs are untagged and gate in `lint-templates.yml` instead — j2lint inside
+the harness, both pr-review copies as their own dedicated steps.
 
 Pre-push adds `check-governance-propagation.sh` (the both-sides-or-neither
 root-vs-template advisory) and the PR itself gates on `pr-guards.yml` /

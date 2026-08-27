@@ -107,9 +107,16 @@ pre-commit:
         - "typescript/template/**"
       run: scripts/lint-templates.sh --jinja {staged_files}
 
+    # Unit tests for pst's own advisory-reviewer copy (#155) — vendored
+    # from dotfiles' current tree, distinct from the payload copy below.
+    - name: pr-review-test
+      glob:
+        - "scripts/pr-review/**"
+      run: node --test "scripts/pr-review/*.test.mjs"
+
     # Unit tests for the vendored advisory-reviewer script (#60) — specific
     # to hosting the payload, not part of a generated repo's own lint.
-    - name: pr-review-test
+    - name: pr-review-test-payload
       glob:
         - "git-flow/template/scripts/pr-review/**"
       run: node --test "git-flow/template/scripts/pr-review/*.test.mjs"
