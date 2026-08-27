@@ -90,5 +90,10 @@ jobs:
       - name: Run pr-review vendored unit tests
         run: node --test "git-flow/template/scripts/pr-review/*.test.mjs"
 
+      # pst's own advisory-reviewer copy (#155) — distinct from the payload
+      # above; same untagged-in-lefthook.yml, dedicated-CI-step shape.
+      - name: Run pst's own pr-review unit tests
+        run: node --test "scripts/pr-review/*.test.mjs"
+
       - name: Run copier-template render-and-verify checks
         run: just lint-templates
