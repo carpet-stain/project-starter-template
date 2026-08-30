@@ -1,0 +1,32 @@
+# AGENTS.md
+
+## Repo facts
+
+- GitHub: [[ github_owner ]]/[[ github_repo ]]
+- Protected branch: `[[ protected_branch ]]`
+
+## Governance
+
+Git hooks, lint config, and CI workflows are governed by
+[project-starter-template](https://github.com/carpet-stain/project-starter-template)
+(PST) under the delivery ladder
+([ADR-0006](https://github.com/carpet-stain/project-starter-template/blob/main/docs/adr/0006-the-delivery-ladder-drift-rule-and-channel-invariants.md)):
+live reusable workflows and `remotes:`-fetched hooks stay current on their
+own; everything else PST-owned is listed in `.pst-sync.yml` and lands as a
+PR when PST cuts a release. Those configs (`lefthook.yml`, `justfile`,
+`.pst-sync.yml` itself) are the enforced spec — this file points at them
+rather than restating their contents. To keep a local deviation instead of
+reconciling the next sync PR, flip that file's entry to `owned: true` in
+`.pst-sync.yml`.
+
+Workflow, commit rules, and tooling this repo inherited at scaffold time:
+[PST's git-flow README](https://github.com/carpet-stain/project-starter-template/blob/main/git-flow/README.md).
+
+## Deviations from PST
+
+<!-- Record intentional divergences here: what differs and why. The
+     mechanics (which file, synced vs owned) live in .pst-sync.yml. -->
+
+## Architecture decisions
+
+`docs/adr/` — see `docs/adr/README.md`.
