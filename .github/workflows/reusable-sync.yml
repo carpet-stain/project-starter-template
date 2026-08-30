@@ -1,0 +1,195 @@
+name: Reusable sync
+
+# Fleet single copy (ADR-0004), no dogfooding (ADR-0006, see the manifest
+# note below); #147 owns PR/drift mechanics, #157 owns scripts/pst-sync/.
+on:
+  workflow_call:
+    inputs:
+      pst_ref:
+        description: >-
+          PST ref scripts/pst-sync/ is fetched from — a called workflow
+          can't see its own `uses:` pin, so match this to it by hand.
+        type: string
+        required: false
+        default: v1
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pst-sync
+  cancel-in-progress: false
+
+env:
+  PST_REPO: carpet-stain/project-starter-template
+  MANIFEST: .pst-sync.yml
+  BRANCH: pst-sync/latest
+
+jobs:
+  sync:
+    name: sync
+    runs-on: ubuntu-latest
+    steps:
+      # workflow_dispatch lets an operator pick any ref, not just default —
+      # everything below assumes default, so resolve and check it out explicitly.
+      - name: Resolve the consumer's default branch
+        id: base
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "base=$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.base.outputs.base }}
+
+      - name: Guard on an empty or missing manifest
+        id: guard
+        run: |
+          if [ ! -f "$MANIFEST" ]; then
+            echo "no $MANIFEST — nothing to sync."
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          count=$(yq -o=json '.' "$MANIFEST" | jq '(.files // []) | length')
+          echo "$count files: entries."
+          echo "empty=$([ "$count" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      # Tarball, not actions/checkout: the action rejects a `path:` outside
+      # the workspace, which this must stay out of (later `git add -A`).
+      - name: Check out this workflow's own script
+        if: steps.guard.outputs.empty == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PST_REF: ${{ inputs.pst_ref }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/pst-sync-src"
+          curl -sL -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/$PST_REPO/tarball/$PST_REF" \
+            -o "$RUNNER_TEMP/pst-sync.tar.gz"
+          tar -xzf "$RUNNER_TEMP/pst-sync.tar.gz" -C "$RUNNER_TEMP/pst-sync-src" --strip-components=1
+
+      # Resolves the target release and diffs/syncs every managed file; see
+      # scripts/pst-sync/*.test.mjs for the decision logic this drives (#157).
+      - name: Sync managed files
+        id: sync
+        if: steps.guard.outputs.empty == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          yq -o=json '.' "$MANIFEST" > "$RUNNER_TEMP/manifest.json"
+          node "$RUNNER_TEMP/pst-sync-src/scripts/pst-sync/run.mjs"
+
+      - name: Advance synced entries' anchors
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          TARGET: ${{ steps.sync.outputs.target }}
+        run: |
+          # advance.txt: only paths run.mjs actually wrote (duplicates abort
+          # the whole run earlier, in run.mjs, so none can collide here).
+          while IFS= read -r p; do
+            [ -z "$p" ] && continue
+            PST_SYNC_PATH="$p" PST_SYNC_ANCHOR="$TARGET" yq -i \
+              '(.files[] | select(.path == strenv(PST_SYNC_PATH)) | .anchor) = strenv(PST_SYNC_ANCHOR)' \
+              "$MANIFEST"
+          done < "$RUNNER_TEMP/advance.txt"
+
+      # Deterministic branch, force-pushed every run (same idempotency shape
+      # as release-publish.yml's moving major tag) — see #147 for the design.
+      - name: Open or update the sync PR
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          TARGET: ${{ steps.sync.outputs.target }}
+          BASE: ${{ steps.base.outputs.base }}
+        run: |
+          existing=$(gh pr list -R "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          # Title carries the prior target so a same-target rerun (a
+          # reconciled entry syncing, not a new release) doesn't claim one.
+          prior_target=""
+          [ -n "$existing" ] && prior_target=$(gh pr view "$existing" -R "$GITHUB_REPOSITORY" --json title --jq '.title' | sed -n 's/^chore(sync): pull to //p')
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add -A
+          git commit -m "chore(sync): pull the sync channel to $TARGET"
+          git push -f origin "$BRANCH"
+
+          {
+            echo "Pulls this repo's sync-channel files to [$TARGET](https://github.com/$PST_REPO/releases/tag/$TARGET)."
+            echo
+            echo "Files updated:"
+            sed 's/^/- /' "$RUNNER_TEMP/updated.txt"
+            if [ -s "$RUNNER_TEMP/diverged.txt" ]; then
+              echo
+              echo "Files skipped as diverged (reconcile the local edit, or set \`owned: true\` in \`$MANIFEST\` to stop this PR — still tracked in the drift issue):"
+              sed 's/^/- /' "$RUNNER_TEMP/diverged.txt"
+            fi
+            echo
+            echo "See PST's [Releases](https://github.com/$PST_REPO/releases) for the fleet changelog."
+          } > "$RUNNER_TEMP/pr-body.md"
+
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" -R "$GITHUB_REPOSITORY" --title "chore(sync): pull to $TARGET" --body-file "$RUNNER_TEMP/pr-body.md"
+            if [ -n "$prior_target" ] && [ "$prior_target" != "$TARGET" ]; then
+              gh pr comment "$existing" -R "$GITHUB_REPOSITORY" --body "Updated: a newer release landed mid-review — this PR now targets $TARGET (N3)."
+            fi
+          else
+            gh pr create -R "$GITHUB_REPOSITORY" --head "$BRANCH" --base "$BASE" \
+              --title "chore(sync): pull to $TARGET" --body-file "$RUNNER_TEMP/pr-body.md"
+          fi
+
+      # Runs regardless of whether a PR opened — an all-owned repo still gets
+      # checked (drift surfacing is unconditional on the PR path).
+      - name: Surface or clear drift
+        if: steps.guard.outputs.empty == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: ${{ steps.sync.outputs.target }}
+        run: |
+          # create-or-noop, never --force (would ping-pong the label, R3/N1).
+          # Only "already exists" is swallowed; any other failure aborts.
+          if ! label_out=$(gh label create pst-sync-drift --color ededed \
+            --description "pst-sync: a file has diverged from or is pinned behind PST's sync channel" \
+            -R "$GITHUB_REPOSITORY" 2>&1); then
+            if ! grep -q "already exists" <<<"$label_out"; then
+              echo "::error::failed to create pst-sync-drift label: $label_out" >&2
+              exit 1
+            fi
+          fi
+
+          # The label alone isn't ownership — a maintainer could apply it to
+          # an unrelated issue; only the marker identifies this workflow's own.
+          existing=$(gh issue list -R "$GITHUB_REPOSITORY" --label pst-sync-drift --state open --json number,body \
+            --jq '[.[] | select(.body | contains("<!-- pst-sync:drift -->"))][0].number // empty')
+
+          if [ -s "$RUNNER_TEMP/diverged.txt" ] || [ -s "$RUNNER_TEMP/owned-behind.txt" ]; then
+            {
+              echo "Files diverged from or pinned behind PST's [sync channel](https://github.com/$PST_REPO/blob/main/.github/workflows/reusable-sync.yml)."
+              if [ -s "$RUNNER_TEMP/diverged.txt" ]; then
+                echo
+                echo "**Diverged** — skipped by the last sync run; reconcile the local edit or set \`owned: true\` in \`$MANIFEST\` to resolve:"
+                sed 's/^/- /' "$RUNNER_TEMP/diverged.txt"
+              fi
+              if [ -s "$RUNNER_TEMP/owned-behind.txt" ]; then
+                echo
+                echo "**Owned** — repo-owned, never overwritten, informational only:"
+                sed 's/^/- /' "$RUNNER_TEMP/owned-behind.txt"
+              fi
+              echo
+              echo "<!-- pst-sync:drift -->"
+            } > "$RUNNER_TEMP/drift-body.md"
+
+            if [ -n "$existing" ]; then
+              gh issue edit "$existing" -R "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/drift-body.md"
+            else
+              gh issue create -R "$GITHUB_REPOSITORY" --title "pst-sync: files diverged or pinned behind" \
+                --label pst-sync-drift --body-file "$RUNNER_TEMP/drift-body.md"
+            fi
+          elif [ -n "$existing" ]; then
+            printf 'All previously diverged/pinned-behind files have reconciled or synced clean.\n\n<!-- pst-sync:drift -->\n' \
+              | gh issue comment "$existing" -R "$GITHUB_REPOSITORY" --body-file -
+            gh issue close "$existing" -R "$GITHUB_REPOSITORY"
+          fi
