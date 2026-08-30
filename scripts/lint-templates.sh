@@ -60,6 +60,7 @@ cleanup() {
   for d in "${cleanup_dirs[@]}"; do
     rm -rf "$d"
   done
+  git branch -D pst-lint-templates-head >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -72,6 +73,17 @@ render() {
   cleanup_dirs+=("$dir")
   uvx copier copy --trust --defaults "$@" "$template" "$dir" >&2
   printf '%s\n' "$dir"
+}
+
+# `git branch --show-current` is empty under a detached-HEAD checkout (CI's
+# usual PR checkout shape) — a synthetic branch at HEAD works either way.
+git branch -f pst-lint-templates-head HEAD >/dev/null
+
+# patch_remotes_local <dir> -> test-only: points rung-1 `remotes:` at this
+# checkout's HEAD instead of the real @v1 tag (a raw commit SHA 128s lefthook's clone).
+patch_remotes_local() {
+  local dir=$1
+  yq -i ".remotes[0].git_url = \"$repo_root\" | .remotes[0].ref = \"pst-lint-templates-head\"" "$dir/lefthook.yml"
 }
 
 echo "==> j2lint (raw jinja syntax)"
@@ -139,8 +151,10 @@ assert_file_set() {
       }
     fi
   done
+  # Prune .git: lefthook `remotes:` clones raw .jinja files into
+  # .git/info/lefthook-remotes/ — internal to lefthook, not a real stray.
   local stray
-  stray=$(find "$dir" -name '*.jinja' -o -name '*{%*')
+  stray=$(find "$dir" -path "$dir/.git" -prune -o -name '*.jinja' -print -o -name '*{%*' -print)
   if [ -n "$stray" ]; then
     echo "stray unrendered filename(s) in $dir:" >&2
     printf '%s\n' "$stray" >&2
@@ -218,6 +232,7 @@ assert_hook_catches_a_real_violation() {
 
 echo "==> rendering + verifying git-flow (include_release_automation=true)"
 base_on=$(render git-flow -d github_owner=fixture-owner -d github_repo=fixture-repo -d include_release_automation=true)
+patch_remotes_local "$base_on"
 assert_file_set "$base_on" true
 assert_no_unresolved "$base_on" '[[' "${GIT_FLOW_ALWAYS_JINJA_FILES[@]}" "${GIT_FLOW_RELEASE_GATED_FILES[@]}"
 assert_lefthook_installed "$base_on"
@@ -228,6 +243,7 @@ assert_hook_catches_a_real_violation "$base_on"
 
 echo "==> rendering + verifying git-flow (include_release_automation=false)"
 base_off=$(render git-flow -d github_owner=fixture-owner -d github_repo=fixture-repo -d include_release_automation=false)
+patch_remotes_local "$base_off"
 assert_file_set "$base_off" false
 assert_no_unresolved "$base_off" '[[' "${GIT_FLOW_ALWAYS_JINJA_FILES[@]}"
 assert_lefthook_installed "$base_off"
@@ -236,6 +252,7 @@ run_rendered_hook "$base_off" pre-push
 
 echo "==> rendering + verifying git-flow + python overlay"
 overlay_dir=$(render git-flow -d github_owner=fixture-owner -d github_repo=fixture-repo)
+patch_remotes_local "$overlay_dir"
 uvx copier copy --trust --defaults --overwrite \
   -d project_name="Fixture Project" \
   -d description="A fixture project for template lint validation." \
@@ -260,6 +277,7 @@ run_rendered_hook "$overlay_dir" pre-push
 
 echo "==> rendering + verifying git-flow + typescript overlay"
 ts_dir=$(render git-flow -d github_owner=fixture-owner -d github_repo=fixture-repo)
+patch_remotes_local "$ts_dir"
 uvx copier copy --trust --defaults --overwrite \
   -d project_name="Fixture Project" \
   -d description="A fixture project for template lint validation." \
@@ -302,6 +320,7 @@ run_rendered_hook "$ts_dir" pre-push
 
 echo "==> rendering + verifying git-flow + typescript overlay (project_kind=lib)"
 ts_lib_dir=$(render git-flow -d github_owner=fixture-owner -d github_repo=fixture-repo)
+patch_remotes_local "$ts_lib_dir"
 uvx copier copy --trust --defaults --overwrite \
   -d project_name="Fixture Project" \
   -d description="A fixture project for template lint validation." \

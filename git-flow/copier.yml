@@ -1,5 +1,11 @@
 _subdirectory: template
 
+# lefthook-remote.yml (ADR-0006 rung 1) is PST-side only — a generated repo
+# fetches it live via lefthook `remotes:`, never gets a local copy that would
+# be stale from day one.
+_exclude:
+  - lefthook-remote.yml
+
 # GitHub Actions' own `${{ }}` expression syntax collides with Jinja's default
 # `{{ }}` delimiters, so every templated workflow file would need its
 # expressions escaped. Switch this template's delimiters to `[[ ]]` instead —

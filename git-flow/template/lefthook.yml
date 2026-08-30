@@ -1,9 +1,19 @@
 # Composition root — base-owned, never edited by an overlay (ADR-0020 in the
-# template's source repo). Base jobs live in lefthook-base.yml (tagged
-# `base`); lefthook-lang.yml ships here as an empty stub a language overlay
-# overwrites with its jobs (tagged `lang`). Locally every layer's jobs run on
+# template's source repo). Base jobs split across two rungs (ADR-0006):
+# self-contained jobs (tagged `base`) live upstream in PST's
+# lefthook-remote.yml, fetched live via `remotes:` pinned to `@v1`; the
+# handful of script-backed base jobs that can't travel that way (also tagged
+# `base`) live in the local lefthook-base.yml instead, synced via pst-sync.
+# lefthook-lang.yml ships here as an empty stub a language overlay overwrites
+# with its jobs (tagged `lang`). Locally every layer's jobs run on
 # commit/push; each CI workflow runs only its own tag slice. Install with
 # `lefthook install`.
+remotes:
+  - git_url: https://github.com/carpet-stain/project-starter-template
+    ref: v1
+    configs:
+      - git-flow/template/lefthook-remote.yml
+
 extends:
   - lefthook-base.yml
   - lefthook-lang.yml
