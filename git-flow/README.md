@@ -97,11 +97,14 @@ hand-apply. Greenfield repos don't need it — `copier copy`/`py-new.sh`/
   drops its verbs in `justfile.lang`; release automation drops
   `cliff-preview` in `justfile.release`
 - `lefthook.yml` + `lefthook-base.yml` + `lefthook-lang.yml` — the composition
-  root (`extends` both), the base jobs tagged `base` (`actionlint`,
-  `markdownlint-cli2`, `prettier`, `yamlfmt`, `gitleaks`, `shfmt`,
-  `shellcheck`, `justfile-format`, `editorconfig-checker`,
-  `check-envrc-local-example.sh`), and an empty stub an overlay overwrites
-  with its `lang`-tagged jobs
+  root (`remotes:` PST's `lefthook-remote.yml` at `@v1` plus `extends:` both
+  local files), the script-backed base jobs tagged `base`
+  (`comment-concision`, `envrc-local-example-sync`), and an empty stub an
+  overlay overwrites with its `lang`-tagged jobs. The rest of the base jobs
+  (`actionlint`, `markdownlint-cli2`, `prettier`, `yamlfmt`, `gitleaks`,
+  `shfmt`, `shellcheck`, `justfile-format`, `editorconfig-checker`) are
+  self-contained and ride PST's `lefthook-remote.yml` live instead of a local
+  copy (ADR-0006's rung 1)
 - `.editorconfig`, `.markdownlint-cli2.yaml`, `.prettierrc.json`, `.yamlfmt`,
   `.gitleaks.toml` — the language-agnostic formatting and secrets-scanning
   baseline the lefthook jobs and CI enforce
