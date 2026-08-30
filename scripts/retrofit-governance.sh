@@ -13,21 +13,27 @@
 # the result is ordinary conflict-resolvable text, so wrong guesses are fixed
 # in the same resolution pass, not re-prompted.
 #
-# usage: scripts/retrofit-governance.sh [--python|--typescript] [dir]
-#   --python      also layer the python overlay (ci test job, ruff/pyright hooks)
-#   --typescript  also layer the typescript overlay (ci test job, biome/tsc hooks)
-#   dir           target repo (default: .)
+# usage: scripts/retrofit-governance.sh [--python|--typescript|--channel-only] [dir]
+#   --python        also layer the python overlay (ci test job, ruff/pyright hooks)
+#   --typescript    also layer the typescript overlay (ci test job, biome/tsc hooks)
+#   --channel-only  plant just the sync channel (.pst-sync.yml + the pst-sync
+#                    caller workflow) instead of the full template — for a repo
+#                    that already carries governance and only needs onboarding
+#                    onto the rung-2 sync channel (ADR-0006, pst#149)
+#   dir             target repo (default: .)
 set -euo pipefail
 
 PYTHON=false
 TYPESCRIPT=false
+CHANNEL_ONLY=false
 TARGET="."
 for arg in "$@"; do
   case "$arg" in
     --python) PYTHON=true ;;
     --typescript) TYPESCRIPT=true ;;
+    --channel-only) CHANNEL_ONLY=true ;;
     -*)
-      echo "usage: $0 [--python|--typescript] [dir]" >&2
+      echo "usage: $0 [--python|--typescript|--channel-only] [dir]" >&2
       exit 1
       ;;
     *) TARGET="$arg" ;;
@@ -36,6 +42,10 @@ done
 
 if $PYTHON && $TYPESCRIPT; then
   echo "error: at most one language overlay (ADR-0020) — pass --python or --typescript, not both." >&2
+  exit 1
+fi
+if $CHANNEL_ONLY && { $PYTHON || $TYPESCRIPT; }; then
+  echo "error: --channel-only plants just the sync channel — pass it alone, without --python/--typescript." >&2
   exit 1
 fi
 
@@ -68,28 +78,43 @@ branch=${branch:-main}
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
-# --skip-tasks: a merge source doesn't need post-gen tasks (git init, lefthook
-# install, uv sync) — skipping keeps generated artifacts like uv.lock out of the merge.
-uvx copier copy --trust --skip-tasks --defaults \
-  -d github_owner="$owner" -d github_repo="$repo" -d protected_branch="$branch" \
-  "$template_repo_dir/git-flow" "$T"
+if $CHANNEL_ONLY; then
+  # Neither channel file is templated (no `[[ ]]` vars) — a plain copy is
+  # enough, no copier render needed.
+  mkdir -p "$T/.github/workflows"
+  cp "$template_repo_dir/git-flow/template/.pst-sync.yml" "$T/.pst-sync.yml"
+  cp "$template_repo_dir/git-flow/template/.github/workflows/pst-sync.yml" "$T/.github/workflows/pst-sync.yml"
+else
+  # --skip-tasks: a merge source doesn't need post-gen tasks (git init, lefthook
+  # install, uv sync) — skipping keeps generated artifacts like uv.lock out of the merge.
+  uvx copier copy --trust --skip-tasks --defaults \
+    -d github_owner="$owner" -d github_repo="$repo" -d protected_branch="$branch" \
+    "$template_repo_dir/git-flow" "$T"
 
-if $PYTHON; then
-  desc=""
-  [[ -f pyproject.toml ]] && desc=$(sed -n 's/^description = "\(.*\)"/\1/p' pyproject.toml | head -1)
-  uvx copier copy --trust --skip-tasks --defaults --overwrite \
-    -d project_name="$repo" -d description="$desc" \
-    -d author_name="$(git config user.name)" -d author_email="$(git config user.email)" \
-    "$template_repo_dir/python" "$T"
+  if $PYTHON; then
+    desc=""
+    [[ -f pyproject.toml ]] && desc=$(sed -n 's/^description = "\(.*\)"/\1/p' pyproject.toml | head -1)
+    uvx copier copy --trust --skip-tasks --defaults --overwrite \
+      -d project_name="$repo" -d description="$desc" \
+      -d author_name="$(git config user.name)" -d author_email="$(git config user.email)" \
+      "$template_repo_dir/python" "$T"
+  fi
+
+  if $TYPESCRIPT; then
+    desc=""
+    [[ -f package.json ]] && desc=$(sed -n 's/.*"description": *"\([^"]*\)".*/\1/p' package.json | head -1)
+    uvx copier copy --trust --skip-tasks --defaults --overwrite \
+      -d project_name="$repo" -d description="$desc" \
+      -d author_name="$(git config user.name)" -d author_email="$(git config user.email)" \
+      "$template_repo_dir/typescript" "$T"
+  fi
 fi
 
-if $TYPESCRIPT; then
-  desc=""
-  [[ -f package.json ]] && desc=$(sed -n 's/.*"description": *"\([^"]*\)".*/\1/p' package.json | head -1)
-  uvx copier copy --trust --skip-tasks --defaults --overwrite \
-    -d project_name="$repo" -d description="$desc" \
-    -d author_name="$(git config user.name)" -d author_email="$(git config user.email)" \
-    "$template_repo_dir/typescript" "$T"
+commit_msg="chore: retrofit governance templates"
+next_step="lefthook install"
+if $CHANNEL_ONLY; then
+  commit_msg="chore: onboard onto the pst-sync channel"
+  next_step="fill in the manifest's owned/anchor entries for this repo's actual files (ADR-0006, pst#148)"
 fi
 
 git -C "$T" init -q -b _retrofit-src
@@ -101,13 +126,12 @@ git -C "$T" -c core.hooksPath=/dev/null commit -qm "governance template output"
 git fetch -q "$T" +_retrofit-src:refs/heads/_retrofit-src
 trap 'rm -rf "$T"; git branch -qD _retrofit-src 2>/dev/null || true' EXIT
 # --no-ff: some setups pin merge.ff=only, which hard-fails a real merge.
-if git merge --allow-unrelated-histories --no-ff \
-  -m "chore: retrofit governance templates" _retrofit-src; then
+if git merge --allow-unrelated-histories --no-ff -m "$commit_msg" _retrofit-src; then
   echo
-  echo "retrofit merged clean — review the diff, then run: lefthook install"
+  echo "retrofit merged clean — review the diff, then $next_step"
 else
   echo
   echo "retrofit staged with conflicts (both contents kept, yours above the markers):"
   git diff --name-only --diff-filter=U | sed 's/^/  /'
-  echo "resolve them, commit, then run: lefthook install"
+  echo "resolve them, commit, then $next_step"
 fi
