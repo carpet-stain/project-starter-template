@@ -1,0 +1,4 @@
+# PST's sync-channel ownership manifest (project-starter-template#147). PST
+# authors this list; a release adds/removes entries, never a hand-edit here
+# except to flip `owned: true` on an entry (see reusable-sync.yml).
+files: []

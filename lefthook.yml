@@ -121,6 +121,13 @@ pre-commit:
         - "git-flow/template/scripts/pr-review/**"
       run: node --test "git-flow/template/scripts/pr-review/*.test.mjs"
 
+    # Unit tests for the sync channel's extracted logic (#157) — same
+    # pure/I/O split as pr-review-test above; reusable-sync.yml's I/O stays live-e2e.
+    - name: pst-sync-test
+      glob:
+        - "scripts/pst-sync/**"
+      run: node --test "scripts/pst-sync/*.test.mjs"
+
 pre-push:
   jobs:
     - name: envrc-local-example-sync
