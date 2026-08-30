@@ -1,6 +1,42 @@
 # Changelog
 
 All notable changes to this project, generated from Conventional Commits.
+## [1.2.0] - 2026-08-30
+
+### Features
+
+- *(ci)* Cap ADR Decision length and enforce the amendment marker ([#131](https://github.com/carpet-stain/project-starter-template/pull/131))
+- *(justfile)* Propagate the token-cost recipe to scaffolded repos ([#140](https://github.com/carpet-stain/project-starter-template/pull/140))
+- *(git)* Add epic issue form, non-goals + stability guidance ([#142](https://github.com/carpet-stain/project-starter-template/pull/142))
+- *(ci)* Enable the advisory reviewer on pst itself ([#156](https://github.com/carpet-stain/project-starter-template/pull/156))
+- *(ci)* Build the rung-2 sync channel ([#157](https://github.com/carpet-stain/project-starter-template/pull/157))
+- *(payload)* Dissolve the lefthook base/lang split onto the rung ladder ([#160](https://github.com/carpet-stain/project-starter-template/pull/160))
+- *(payload)* Channel-only retrofit mode + rung-3 AGENTS.md seed ([#161](https://github.com/carpet-stain/project-starter-template/pull/161))
+
+### Bug Fixes
+
+- *(adr)* Fail the ADR guard on the Superceded misspelling ([#129](https://github.com/carpet-stain/project-starter-template/pull/129))
+- *(adr)* Enforce the ADR amendment marker symmetrically with supersede ([#136](https://github.com/carpet-stain/project-starter-template/pull/136))
+- *(ci)* Widen the epic-complete guard for dedicated-member-repo membership ([#137](https://github.com/carpet-stain/project-starter-template/pull/137))
+
+### Refactor
+
+- *(ci)* Drop the full clone from the conventional-commit guard ([#139](https://github.com/carpet-stain/project-starter-template/pull/139))
+
+### Documentation
+
+- *(adr)* Reshape Decision, unify amendments, make the bar operational ([#134](https://github.com/carpet-stain/project-starter-template/pull/134))
+- *(readme)* Surface the reusable-workflow-host role ([#141](https://github.com/carpet-stain/project-starter-template/pull/141))
+- *(adr)* Record the delivery ladder, drift rule, and channel invariants ([#154](https://github.com/carpet-stain/project-starter-template/pull/154))
+
+### CI
+
+- *(reusable)* Exempt dependabot PRs from the issue-link guard ([#130](https://github.com/carpet-stain/project-starter-template/pull/130))
+
+### Chore
+
+- *(ci)* Bump pnpm/action-setup from 4 to 6 ([#121](https://github.com/carpet-stain/project-starter-template/pull/121))
+
 ## [1.1.0] - 2026-08-23
 
 ### Features
